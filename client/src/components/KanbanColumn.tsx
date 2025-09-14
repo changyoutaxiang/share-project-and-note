@@ -48,22 +48,36 @@ export default function KanbanColumn({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(true);
+    console.log(`DragOver on ${status}`);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(false);
+    e.stopPropagation();
+    // Only set false if leaving the drop zone itself, not child elements
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+      console.log(`DragLeave from ${status}`);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
     
+    console.log(`Drop event triggered on ${status}`);
     const taskId = e.dataTransfer.getData("text/plain");
+    console.log(`Task ID from dataTransfer: ${taskId}`);
+    
     if (taskId && onStatusChange) {
+      console.log(`Calling onStatusChange for task ${taskId} -> ${status}`);
       onStatusChange(taskId, status);
       console.log(`Task ${taskId} moved to ${status}`);
+    } else {
+      console.warn('Drop event: missing taskId or onStatusChange handler');
     }
   };
 
@@ -115,8 +129,13 @@ export default function KanbanColumn({
               draggable
               className="cursor-grab active:cursor-grabbing"
               onDragStart={(e) => {
+                console.log(`DragStart event for task: ${task.id}`);
                 e.dataTransfer.setData("text/plain", task.id);
-                console.log(`Dragging task: ${task.id}`);
+                e.dataTransfer.effectAllowed = "move";
+                console.log(`DataTransfer set: ${task.id}`);
+              }}
+              onDragEnd={(e) => {
+                console.log(`DragEnd event for task: ${task.id}`);
               }}
               data-testid={`draggable-task-${task.id}`}
             >
