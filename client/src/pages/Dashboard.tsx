@@ -1,106 +1,156 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardStats from "@/components/DashboardStats";
 import ProjectCard from "@/components/ProjectCard";
 import TaskCard from "@/components/TaskCard";
 import SearchBar from "@/components/SearchBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Calendar, Clock } from "lucide-react";
+import { Plus, Calendar, Clock, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Project, Task, TaskStatus, TaskPriority } from "@shared/schema";
-
-// todo: remove mock data when integrating with backend
-const mockProjects: Project[] = [
-  {
-    id: "proj-1",
-    name: "个人项目管理应用",
-    description: "开发一个功能完整的个人项目管理工具",
-    status: "active",
-    dueDate: new Date("2025-02-28"),
-    createdAt: new Date("2025-01-01"),
-  },
-  {
-    id: "proj-2",
-    name: "网站重设计项目",
-    description: "重新设计公司官方网站",
-    status: "active",
-    dueDate: new Date("2025-03-15"),
-    createdAt: new Date("2025-01-10"),
-  },
-];
-
-const mockTasks: Task[] = [
-  {
-    id: "task-1",
-    projectId: "proj-1",
-    title: "设计数据库架构",
-    description: "设计项目和任务的数据模型",
-    status: TaskStatus.DONE,
-    priority: TaskPriority.HIGH,
-    dueDate: new Date("2025-01-20"),
-    estimatedHours: 6,
-    actualHours: 5,
-    tags: ["后端", "数据库"],
-    createdAt: new Date("2025-01-01"),
-    updatedAt: new Date("2025-01-15"),
-  },
-  {
-    id: "task-2",
-    projectId: "proj-1",
-    title: "实现任务看板功能",
-    description: "开发拖拽式任务看板",
-    status: TaskStatus.IN_PROGRESS,
-    priority: TaskPriority.HIGH,
-    dueDate: new Date("2025-01-25"),
-    estimatedHours: 10,
-    actualHours: null,
-    tags: ["前端", "React"],
-    createdAt: new Date("2025-01-10"),
-    updatedAt: new Date("2025-01-18"),
-  },
-  {
-    id: "task-3",
-    projectId: "proj-2",
-    title: "用户体验研究",
-    description: "进行用户访谈和需求分析",
-    status: TaskStatus.TODO,
-    priority: TaskPriority.MEDIUM,
-    dueDate: new Date("2025-01-30"),
-    estimatedHours: 8,
-    actualHours: null,
-    tags: ["UX", "研究"],
-    createdAt: new Date("2025-01-12"),
-    updatedAt: new Date("2025-01-12"),
-  },
-];
+import { projectApi, taskApi, searchApi } from "@/lib/api";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const filteredProjects = mockProjects.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch projects and tasks from API
+  const { 
+    data: projects = [], 
+    isLoading: projectsLoading, 
+    error: projectsError,
+    refetch: refetchProjects 
+  } = useQuery({
+    queryKey: ["/api/projects"],
+    queryFn: projectApi.getAll,
+  });
 
-  const filteredTasks = mockTasks.filter(task =>
-    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    task.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const { 
+    data: tasks = [], 
+    isLoading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks 
+  } = useQuery({
+    queryKey: ["/api/tasks"],
+    queryFn: () => taskApi.getAll(),
+  });
 
-  const recentTasks = mockTasks
+  const { data: searchResults, isLoading: searchLoading } = useQuery({
+    queryKey: ["/api/search", searchQuery],
+    queryFn: async () => {
+      if (!searchQuery.trim()) return { projects: [], tasks: [] };
+      const [searchedProjects, searchedTasks] = await Promise.all([
+        searchApi.projects(searchQuery),
+        searchApi.tasks(searchQuery),
+      ]);
+      return { projects: searchedProjects, tasks: searchedTasks };
+    },
+    enabled: searchQuery.length > 0,
+  });
+
+  // Mutations for task operations
+  const updateTaskStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
+      taskApi.updateStatus(taskId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务状态已更新" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "更新失败", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: taskApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务已删除" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "删除失败", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: projectApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "项目已删除" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "删除失败", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Filter data based on search
+  const filteredProjects = searchQuery 
+    ? (searchResults?.projects || [])
+    : projects;
+
+  const filteredTasks = searchQuery 
+    ? (searchResults?.tasks || [])
+    : tasks;
+
+  const recentTasks = [...tasks]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
 
-  const upcomingTasks = mockTasks
+  const upcomingTasks = [...tasks]
     .filter(task => task.dueDate && new Date(task.dueDate) > new Date() && task.status !== TaskStatus.DONE)
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
     .slice(0, 3);
 
   const handleCreateProject = () => {
     console.log("Create new project");
+    // todo: implement project creation modal
   };
 
   const handleCreateTask = () => {
     console.log("Create new task");
+    // todo: implement task creation modal
+  };
+
+  const handleEditTask = (task: Task) => {
+    console.log("Edit task:", task);
+    // todo: implement task editing modal
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    deleteTaskMutation.mutate(taskId);
+  };
+
+  const handleTaskStatusChange = (taskId: string, status: string) => {
+    updateTaskStatusMutation.mutate({ taskId, status });
+  };
+
+  const handleEditProject = (project: Project) => {
+    console.log("Edit project:", project);
+    // todo: implement project editing modal
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    deleteProjectMutation.mutate(projectId);
+  };
+
+  const handleOpenProject = (projectId: string) => {
+    console.log("Open project:", projectId);
+    // todo: navigate to project detail page
   };
 
   return (
@@ -135,8 +185,54 @@ export default function Dashboard() {
         className="max-w-md"
       />
 
+      {/* Loading State */}
+      {(projectsLoading || tasksLoading) && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span className="text-muted-foreground">加载中...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {(projectsError || tasksError) && (
+        <Card className="border-destructive" data-testid="card-error">
+          <CardContent className="flex flex-col items-center py-8">
+            <div className="text-destructive mb-4">
+              <h3 className="text-lg font-semibold">数据加载失败</h3>
+              <p className="text-sm text-muted-foreground">
+                {projectsError && "项目数据: " + (projectsError as Error).message}
+                {projectsError && tasksError && " | "}
+                {tasksError && "任务数据: " + (tasksError as Error).message}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {projectsError && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetchProjects()}
+                  data-testid="button-retry-projects"
+                >
+                  重试加载项目
+                </Button>
+              )}
+              {tasksError && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetchTasks()}
+                  data-testid="button-retry-tasks"
+                >
+                  重试加载任务
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistics */}
-      <DashboardStats projects={mockProjects} tasks={mockTasks} />
+      {!projectsLoading && !tasksLoading && (
+        <DashboardStats projects={projects} tasks={tasks} />
+      )}
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -156,10 +252,10 @@ export default function Dashboard() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  tasks={mockTasks.filter(t => t.projectId === project.id)}
-                  onEdit={(project) => console.log("Edit project:", project)}
-                  onDelete={(id) => console.log("Delete project:", id)}
-                  onOpen={(id) => console.log("Open project:", id)}
+                  tasks={tasks.filter(t => t.projectId === project.id)}
+                  onEdit={handleEditProject}
+                  onDelete={handleDeleteProject}
+                  onOpen={handleOpenProject}
                 />
               ))
             ) : (
@@ -186,9 +282,9 @@ export default function Dashboard() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  onEdit={(task) => console.log("Edit task:", task)}
-                  onDelete={(id) => console.log("Delete task:", id)}
-                  onStatusChange={(id, status) => console.log("Status change:", id, status)}
+                  onEdit={handleEditTask}
+                  onDelete={handleDeleteTask}
+                  onStatusChange={handleTaskStatusChange}
                 />
               ))
             ) : (

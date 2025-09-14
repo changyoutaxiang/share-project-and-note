@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface SearchBarProps {
   placeholder?: string;
@@ -17,11 +18,17 @@ export default function SearchBar({
   className = ""
 }: SearchBarProps) {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
 
-  const handleSearch = (value: string) => {
+  // Trigger search when debounced query changes
+  useEffect(() => {
+    onSearch?.(debouncedQuery);
+    console.log("Debounced search for:", debouncedQuery);
+  }, [debouncedQuery, onSearch]);
+
+  const handleInputChange = (value: string) => {
     setQuery(value);
-    onSearch?.(value);
-    console.log("Searching for:", value);
+    console.log("Input changed:", value);
   };
 
   const handleClear = () => {
@@ -32,7 +39,9 @@ export default function SearchBar({
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      handleSearch(query);
+      // Force immediate search on Enter
+      onSearch?.(query);
+      console.log("Immediate search for:", query);
     }
   };
 
@@ -44,7 +53,7 @@ export default function SearchBar({
           type="search"
           placeholder={placeholder}
           value={query}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => handleInputChange(e.target.value)}
           onKeyPress={handleKeyPress}
           className="pl-9 pr-9"
           data-testid="input-search"

@@ -1,116 +1,80 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import KanbanColumn from "@/components/KanbanColumn";
 import SearchBar from "@/components/SearchBar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Filter, MoreHorizontal } from "lucide-react";
+import { Plus, Filter, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Task, TaskStatus, TaskPriority, TaskStatusType } from "@shared/schema";
-
-// todo: remove mock data when integrating with backend
-const mockTasks: Task[] = [
-  {
-    id: "task-1",
-    projectId: "proj-1",
-    title: "设计用户界面原型",
-    description: "创建应用的基础UI设计，包含响应式布局和深色模式支持",
-    status: TaskStatus.TODO,
-    priority: TaskPriority.HIGH,
-    dueDate: new Date("2025-01-25"),
-    estimatedHours: 8,
-    actualHours: null,
-    tags: ["设计", "UI/UX"],
-    createdAt: new Date("2025-01-10"),
-    updatedAt: new Date("2025-01-10"),
-  },
-  {
-    id: "task-2",
-    projectId: "proj-1",
-    title: "实现拖拽功能",
-    description: "为看板添加拖拽排序功能",
-    status: TaskStatus.IN_PROGRESS,
-    priority: TaskPriority.MEDIUM,
-    dueDate: new Date("2025-01-30"),
-    estimatedHours: 6,
-    actualHours: null,
-    tags: ["前端", "交互"],
-    createdAt: new Date("2025-01-12"),
-    updatedAt: new Date("2025-01-18"),
-  },
-  {
-    id: "task-3",
-    projectId: "proj-1",
-    title: "数据库设计",
-    description: "设计项目和任务的数据模型",
-    status: TaskStatus.DONE,
-    priority: TaskPriority.HIGH,
-    dueDate: new Date("2025-01-20"),
-    estimatedHours: 4,
-    actualHours: 3,
-    tags: ["后端", "数据库"],
-    createdAt: new Date("2025-01-01"),
-    updatedAt: new Date("2025-01-15"),
-  },
-  {
-    id: "task-4",
-    projectId: "proj-2",
-    title: "API接口开发",
-    description: "开发RESTful API接口",
-    status: TaskStatus.IN_PROGRESS,
-    priority: TaskPriority.HIGH,
-    dueDate: new Date("2025-02-01"),
-    estimatedHours: 12,
-    actualHours: null,
-    tags: ["后端", "API"],
-    createdAt: new Date("2025-01-15"),
-    updatedAt: new Date("2025-01-19"),
-  },
-  {
-    id: "task-5",
-    projectId: "proj-2",
-    title: "用户认证",
-    description: "实现用户登录和权限管理",
-    status: TaskStatus.TODO,
-    priority: TaskPriority.MEDIUM,
-    dueDate: new Date("2025-02-10"),
-    estimatedHours: 8,
-    actualHours: null,
-    tags: ["后端", "安全"],
-    createdAt: new Date("2025-01-16"),
-    updatedAt: new Date("2025-01-16"),
-  },
-  {
-    id: "task-6",
-    projectId: "proj-1",
-    title: "单元测试",
-    description: "编写核心功能的单元测试",
-    status: TaskStatus.DONE,
-    priority: TaskPriority.LOW,
-    dueDate: new Date("2025-01-18"),
-    estimatedHours: 5,
-    actualHours: 4,
-    tags: ["测试", "质量"],
-    createdAt: new Date("2025-01-05"),
-    updatedAt: new Date("2025-01-17"),
-  },
-];
+import { taskApi, searchApi } from "@/lib/api";
 
 export default function KanbanView() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Filter tasks based on search and project
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = searchQuery === "" || 
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesProject = selectedProject === null || task.projectId === selectedProject;
-    
-    return matchesSearch && matchesProject;
+  // Fetch tasks from API
+  const { 
+    data: allTasks = [], 
+    isLoading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks 
+  } = useQuery({
+    queryKey: ["/api/tasks"],
+    queryFn: () => taskApi.getAll(),
   });
+
+  const { data: searchResults, isLoading: searchLoading } = useQuery({
+    queryKey: ["/api/search/tasks", searchQuery],
+    queryFn: async () => {
+      if (!searchQuery.trim()) return [];
+      return searchApi.tasks(searchQuery);
+    },
+    enabled: searchQuery.length > 0,
+  });
+
+  // Mutations for task operations
+  const updateTaskStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
+      taskApi.updateStatus(taskId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务状态已更新" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "更新失败", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: taskApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务已删除" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "删除失败", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Get tasks to display based on search
+  const tasks = searchQuery && searchResults ? searchResults : allTasks;
+
+  // Filter tasks based on project selection
+  const filteredTasks = selectedProject 
+    ? tasks.filter(task => task.projectId === selectedProject)
+    : tasks;
 
   // Group tasks by status
   const todoTasks = filteredTasks.filter(task => task.status === TaskStatus.TODO);
@@ -119,27 +83,23 @@ export default function KanbanView() {
 
   const handleAddTask = (status: TaskStatusType) => {
     console.log(`Add new task with status: ${status}`);
+    // todo: implement task creation modal
   };
 
   const handleEditTask = (task: Task) => {
     console.log("Edit task:", task);
+    // todo: implement task editing modal
   };
 
   const handleDeleteTask = (taskId: string) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId));
-    console.log("Delete task:", taskId);
+    deleteTaskMutation.mutate(taskId);
   };
 
   const handleStatusChange = (taskId: string, newStatus: string) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
-        ? { ...task, status: newStatus as TaskStatusType, updatedAt: new Date() }
-        : task
-    ));
-    console.log(`Task ${taskId} status changed to ${newStatus}`);
+    updateTaskStatusMutation.mutate({ taskId, status: newStatus });
   };
 
-  const projects = Array.from(new Set(tasks.map(task => task.projectId)));
+  const projects = Array.from(new Set(allTasks.map(task => task.projectId)));
 
   return (
     <div className="space-y-6" data-testid="page-kanban">
@@ -203,58 +163,91 @@ export default function KanbanView() {
         </CardContent>
       </Card>
 
+      {/* Loading State */}
+      {tasksLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span className="text-muted-foreground">加载任务中...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {tasksError && (
+        <Card className="border-destructive" data-testid="card-error">
+          <CardContent className="flex flex-col items-center py-8">
+            <div className="text-destructive mb-4">
+              <h3 className="text-lg font-semibold">任务数据加载失败</h3>
+              <p className="text-sm text-muted-foreground">
+                {(tasksError as Error).message}
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => refetchTasks()}
+              data-testid="button-retry-tasks"
+            >
+              重试加载任务
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Summary */}
-      <div className="flex gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-          <span className="text-muted-foreground" data-testid="text-todo-count">
-            待办: {todoTasks.length}
-          </span>
+      {!tasksLoading && (
+        <div className="flex gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+            <span className="text-muted-foreground" data-testid="text-todo-count">
+              待办: {todoTasks.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+            <span className="text-muted-foreground" data-testid="text-in-progress-count">
+              进行中: {inProgressTasks.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            <span className="text-muted-foreground" data-testid="text-done-count">
+              已完成: {doneTasks.length}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-muted-foreground" data-testid="text-in-progress-count">
-            进行中: {inProgressTasks.length}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-muted-foreground" data-testid="text-done-count">
-            已完成: {doneTasks.length}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[600px]" data-testid="kanban-board">
-        <KanbanColumn
-          title="待办"
-          status={TaskStatus.TODO}
-          tasks={todoTasks}
-          onAddTask={handleAddTask}
-          onEditTask={handleEditTask}
-          onDeleteTask={handleDeleteTask}
-          onStatusChange={handleStatusChange}
-        />
-        <KanbanColumn
-          title="进行中"
-          status={TaskStatus.IN_PROGRESS}
-          tasks={inProgressTasks}
-          onAddTask={handleAddTask}
-          onEditTask={handleEditTask}
-          onDeleteTask={handleDeleteTask}
-          onStatusChange={handleStatusChange}
-        />
-        <KanbanColumn
-          title="已完成"
-          status={TaskStatus.DONE}
-          tasks={doneTasks}
-          onAddTask={handleAddTask}
-          onEditTask={handleEditTask}
-          onDeleteTask={handleDeleteTask}
-          onStatusChange={handleStatusChange}
-        />
-      </div>
+      {!tasksLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[600px]" data-testid="kanban-board">
+          <KanbanColumn
+            title="待办"
+            status={TaskStatus.TODO}
+            tasks={todoTasks}
+            onAddTask={handleAddTask}
+            onEditTask={handleEditTask}
+            onDeleteTask={handleDeleteTask}
+            onStatusChange={handleStatusChange}
+          />
+          <KanbanColumn
+            title="进行中"
+            status={TaskStatus.IN_PROGRESS}
+            tasks={inProgressTasks}
+            onAddTask={handleAddTask}
+            onEditTask={handleEditTask}
+            onDeleteTask={handleDeleteTask}
+            onStatusChange={handleStatusChange}
+          />
+          <KanbanColumn
+            title="已完成"
+            status={TaskStatus.DONE}
+            tasks={doneTasks}
+            onAddTask={handleAddTask}
+            onEditTask={handleEditTask}
+            onDeleteTask={handleDeleteTask}
+            onStatusChange={handleStatusChange}
+          />
+        </div>
+      )}
     </div>
   );
 }
