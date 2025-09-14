@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import TaskCard from "./TaskCard";
 import { Task, TaskStatusType } from "@shared/schema";
 
@@ -87,7 +87,6 @@ export default function KanbanColumn({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
               onClick={() => onAddTask?.(status)}
               data-testid={`button-add-task-${status}`}
             >
@@ -114,6 +113,7 @@ export default function KanbanColumn({
             <div
               key={task.id}
               draggable
+              className="cursor-grab active:cursor-grabbing"
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", task.id);
                 console.log(`Dragging task: ${task.id}`);
@@ -134,7 +134,7 @@ export default function KanbanColumn({
               className="flex flex-col items-center justify-center py-8 text-muted-foreground"
               data-testid={`empty-state-${status}`}
             >
-              <div className="text-4xl mb-2">📝</div>
+              <FileText className="w-8 h-8 mb-2" />
               <p className="text-sm text-center">
                 {status === "todo" && "暂无待办任务"}
                 {status === "in_progress" && "暂无进行中任务"}  
