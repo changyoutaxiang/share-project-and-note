@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import Dashboard from "@/pages/Dashboard";
 import KanbanView from "@/pages/KanbanView";
 import TaskList from "@/pages/TaskList";
+import Projects from "@/pages/Projects";
 import NotFound from "@/pages/NotFound";
 
 function Router() {
@@ -17,7 +18,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/kanban" component={KanbanView} />
-      <Route path="/projects" component={() => <div className="p-6">项目页面开发中...</div>} />
+      <Route path="/projects" component={Projects} />
       <Route path="/tasks" component={TaskList} />
       <Route path="/analytics" component={() => <div className="p-6">统计页面开发中...</div>} />
       <Route path="/settings" component={() => <div className="p-6">设置页面开发中...</div>} />
