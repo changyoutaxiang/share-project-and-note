@@ -1,8 +1,13 @@
 import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertProjectSchema, insertTaskSchema, insertTagSchema } from "@shared/schema";
+import { MemStorage } from "./storage";
+import { SupabaseStorage } from "./supabaseStorage";
+import { insertProjectSchema, insertTaskSchema, insertTagSchema, insertMilestoneSchema } from "@shared/schema";
+
+// Use Supabase in production, memory storage in development without Supabase config
+const useSupabase = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY;
+const storage = useSupabase ? new SupabaseStorage() : new MemStorage();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Enable JSON parsing
@@ -34,7 +39,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const validatedData = insertProjectSchema.parse(req.body);
+      // Convert date string to Date object if provided
+      const requestData = { ...req.body };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertProjectSchema.parse(requestData);
       const project = await storage.createProject(validatedData);
       res.status(201).json(project);
     } catch (error) {
@@ -45,7 +56,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/projects/:id", async (req, res) => {
     try {
-      const validatedData = insertProjectSchema.partial().parse(req.body);
+      // Convert date string to Date object if provided
+      const requestData = { ...req.body };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertProjectSchema.partial().parse(requestData);
       const project = await storage.updateProject(req.params.id, validatedData);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
@@ -97,7 +114,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tasks", async (req, res) => {
     try {
-      const validatedData = insertTaskSchema.parse(req.body);
+      // Convert date string to Date object if provided
+      const requestData = { ...req.body };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertTaskSchema.parse(requestData);
       const task = await storage.createTask(validatedData);
       res.status(201).json(task);
     } catch (error) {
@@ -108,7 +131,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/tasks/:id", async (req, res) => {
     try {
-      const validatedData = insertTaskSchema.partial().parse(req.body);
+      // Convert date string to Date object if provided
+      const requestData = { ...req.body };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertTaskSchema.partial().parse(requestData);
       const task = await storage.updateTask(req.params.id, validatedData);
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
@@ -198,6 +227,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error searching projects:", error);
       res.status(500).json({ error: "Failed to search projects" });
+    }
+  });
+
+  // Analytics routes
+  app.get("/api/analytics/overview", async (req, res) => {
+    try {
+      const overview = await storage.getOverviewStats();
+      res.json(overview);
+    } catch (error) {
+      console.error("Error fetching overview stats:", error);
+      res.status(500).json({ error: "Failed to fetch overview stats" });
+    }
+  });
+
+  app.get("/api/analytics/risk", async (req, res) => {
+    try {
+      const risk = await storage.getRiskAnalysis();
+      res.json(risk);
+    } catch (error) {
+      console.error("Error fetching risk analysis:", error);
+      res.status(500).json({ error: "Failed to fetch risk analysis" });
+    }
+  });
+
+  app.get("/api/analytics/resource", async (req, res) => {
+    try {
+      const resource = await storage.getResourceUtilization();
+      res.json(resource);
+    } catch (error) {
+      console.error("Error fetching resource utilization:", error);
+      res.status(500).json({ error: "Failed to fetch resource utilization" });
+    }
+  });
+
+  app.get("/api/analytics/efficiency", async (req, res) => {
+    try {
+      const efficiency = await storage.getEfficiencyStats();
+      res.json(efficiency);
+    } catch (error) {
+      console.error("Error fetching efficiency stats:", error);
+      res.status(500).json({ error: "Failed to fetch efficiency stats" });
+    }
+  });
+
+  app.get("/api/analytics/agile", async (req, res) => {
+    try {
+      const agile = await storage.getAgileMetrics();
+      res.json(agile);
+    } catch (error) {
+      console.error("Error fetching agile metrics:", error);
+      res.status(500).json({ error: "Failed to fetch agile metrics" });
+    }
+  });
+
+  // Milestone routes
+  app.get("/api/milestones", async (req, res) => {
+    try {
+      const projectId = req.query.projectId as string;
+      const milestones = await storage.getMilestones(projectId);
+      res.json(milestones);
+    } catch (error) {
+      console.error("Error fetching milestones:", error);
+      res.status(500).json({ error: "Failed to fetch milestones" });
+    }
+  });
+
+  app.get("/api/milestones/:id", async (req, res) => {
+    try {
+      const milestone = await storage.getMilestone(req.params.id);
+      if (!milestone) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+      res.json(milestone);
+    } catch (error) {
+      console.error("Error fetching milestone:", error);
+      res.status(500).json({ error: "Failed to fetch milestone" });
+    }
+  });
+
+  app.post("/api/milestones", async (req, res) => {
+    try {
+      const requestData = { ...req.body };
+      if (requestData.date && typeof requestData.date === 'string') {
+        requestData.date = new Date(requestData.date);
+      }
+
+      const validatedData = insertMilestoneSchema.parse(requestData);
+      const milestone = await storage.createMilestone(validatedData);
+      res.status(201).json(milestone);
+    } catch (error) {
+      console.error("Error creating milestone:", error);
+      res.status(400).json({ error: "Invalid milestone data" });
+    }
+  });
+
+  app.put("/api/milestones/:id", async (req, res) => {
+    try {
+      const requestData = { ...req.body };
+      if (requestData.date && typeof requestData.date === 'string') {
+        requestData.date = new Date(requestData.date);
+      }
+
+      const validatedData = insertMilestoneSchema.partial().parse(requestData);
+      const milestone = await storage.updateMilestone(req.params.id, validatedData);
+      if (!milestone) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+      res.json(milestone);
+    } catch (error) {
+      console.error("Error updating milestone:", error);
+      res.status(400).json({ error: "Invalid milestone data" });
+    }
+  });
+
+  app.delete("/api/milestones/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteMilestone(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting milestone:", error);
+      res.status(500).json({ error: "Failed to delete milestone" });
+    }
+  });
+
+  // Gantt chart routes
+  app.get("/api/gantt/project/:id", async (req, res) => {
+    try {
+      const ganttData = await storage.getGanttData(req.params.id);
+      res.json(ganttData);
+    } catch (error) {
+      console.error("Error fetching Gantt data:", error);
+      res.status(500).json({ error: "Failed to fetch Gantt data" });
+    }
+  });
+
+  app.patch("/api/tasks/:id/schedule", async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "Start date and end date are required" });
+      }
+
+      const task = await storage.updateTaskSchedule(
+        req.params.id,
+        new Date(startDate),
+        new Date(endDate)
+      );
+
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task schedule:", error);
+      res.status(500).json({ error: "Failed to update task schedule" });
+    }
+  });
+
+  app.patch("/api/tasks/:id/progress", async (req, res) => {
+    try {
+      const { progress } = req.body;
+      if (typeof progress !== 'number') {
+        return res.status(400).json({ error: "Progress must be a number" });
+      }
+
+      const task = await storage.updateTaskProgress(req.params.id, progress);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task progress:", error);
+      res.status(500).json({ error: "Failed to update task progress" });
+    }
+  });
+
+  app.post("/api/tasks/:id/dependencies", async (req, res) => {
+    try {
+      const { dependencies } = req.body;
+      if (!Array.isArray(dependencies)) {
+        return res.status(400).json({ error: "Dependencies must be an array" });
+      }
+
+      const task = await storage.updateTaskDependencies(req.params.id, dependencies);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task dependencies:", error);
+      res.status(500).json({ error: "Failed to update task dependencies" });
     }
   });
 

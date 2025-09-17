@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -19,10 +19,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Plus,
+  Search,
+  Filter,
   MoreVertical,
   ArrowUpDown,
   ArrowUp,
@@ -35,8 +38,11 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { taskApi, projectApi } from "@/lib/api";
-import { Task, Project, TaskStatus, TaskPriority, TaskStatusType, TaskPriorityType } from "@shared/schema";
+import { Task, Project, TaskStatus, TaskPriority, TaskStatusType, TaskPriorityType, InsertTask, insertTaskSchema } from "@shared/schema";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 type SortField = "title" | "status" | "priority" | "dueDate" | "createdAt" | "updatedAt";
 type SortDirection = "asc" | "desc";
@@ -53,10 +59,45 @@ export default function TaskList() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: "updatedAt", direction: "desc" });
-  
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Create form
+  const createForm = useForm<z.infer<typeof insertTaskSchema>>({
+    resolver: zodResolver(insertTaskSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      projectId: "",
+      status: TaskStatus.TODO,
+      priority: TaskPriority.MEDIUM,
+      dueDate: undefined,
+      estimatedHours: undefined,
+      actualHours: undefined,
+      tags: undefined,
+    },
+  });
+
+  // Edit form
+  const editForm = useForm<z.infer<typeof insertTaskSchema>>({
+    resolver: zodResolver(insertTaskSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      projectId: "",
+      status: TaskStatus.TODO,
+      priority: TaskPriority.MEDIUM,
+      dueDate: undefined,
+      estimatedHours: undefined,
+      actualHours: undefined,
+      tags: undefined,
+    },
+  });
 
   // Fetch tasks and projects
   const { 
@@ -77,6 +118,50 @@ export default function TaskList() {
     queryFn: () => projectApi.getAll(),
   });
 
+  // Create task mutation
+  const createTaskMutation = useMutation({
+    mutationFn: (data: InsertTask) => taskApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setCreateDialogOpen(false);
+      createForm.reset();
+      toast({
+        title: "任务创建成功",
+        description: "新任务已成功创建。",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "创建失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update task mutation
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<InsertTask> }) =>
+      taskApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setEditDialogOpen(false);
+      setEditingTask(null);
+      editForm.reset();
+      toast({
+        title: "任务更新成功",
+        description: "任务信息已成功更新。",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "更新失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete task mutation
   const deleteTaskMutation = useMutation({
     mutationFn: taskApi.delete,
@@ -85,10 +170,10 @@ export default function TaskList() {
       toast({ title: "任务已删除" });
     },
     onError: (error) => {
-      toast({ 
-        title: "删除失败", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "删除失败",
+        description: error.message,
+        variant: "destructive"
       });
     },
   });
@@ -248,6 +333,34 @@ export default function TaskList() {
     setSelectedTasks(new Set());
   };
 
+  // Handle form submission
+  const onCreateSubmit = (data: z.infer<typeof insertTaskSchema>) => {
+    createTaskMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: z.infer<typeof insertTaskSchema>) => {
+    if (editingTask) {
+      updateTaskMutation.mutate({ id: editingTask.id, data });
+    }
+  };
+
+  // Handle edit task
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+    editForm.reset({
+      title: task.title,
+      description: task.description || "",
+      projectId: task.projectId,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      estimatedHours: task.estimatedHours,
+      actualHours: task.actualHours,
+      tags: task.tags,
+    });
+    setEditDialogOpen(true);
+  };
+
   // Get project name
   const getProjectName = (projectId: string) => {
     const project = projects.find(p => p.id === projectId);
@@ -335,13 +448,14 @@ export default function TaskList() {
             管理和跟踪所有任务 • 共 {filteredTasks.length} 个任务
           </p>
         </div>
-        <Button
-          onClick={() => console.log("Create new task")}
-          data-testid="button-create-task"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          新建任务
-        </Button>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-create-task">
+              <Plus className="w-4 h-4 mr-2" />
+              新建任务
+            </Button>
+          </DialogTrigger>
+        </Dialog>
       </div>
 
       {/* Toolbar */}
@@ -617,7 +731,7 @@ export default function TaskList() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => console.log("Edit task:", task.id)}>
+                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
                           <Edit className="w-4 h-4 mr-2" />
                           编辑
                         </DropdownMenuItem>
@@ -648,6 +762,369 @@ export default function TaskList() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Task Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent data-testid="dialog-create-task">
+          <DialogHeader>
+            <DialogTitle>创建新任务</DialogTitle>
+            <DialogDescription>
+              填写任务详细信息，开始跟踪您的工作进度。
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+              <FormField
+                control={createForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>任务标题 *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="输入任务标题"
+                        {...field}
+                        data-testid="input-task-title"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>任务描述</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="输入任务描述（可选）"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="input-task-description"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={createForm.control}
+                  name="projectId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>所属项目 *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-task-project">
+                            <SelectValue placeholder="选择项目" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {projects.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={createForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>优先级</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-task-priority">
+                            <SelectValue placeholder="选择优先级" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={TaskPriority.LOW}>低</SelectItem>
+                          <SelectItem value={TaskPriority.MEDIUM}>中</SelectItem>
+                          <SelectItem value={TaskPriority.HIGH}>高</SelectItem>
+                          <SelectItem value={TaskPriority.URGENT}>紧急</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={createForm.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>到期日期</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                          data-testid="input-task-due-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={createForm.control}
+                  name="estimatedHours"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>预估工时（小时）</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          value={field.value || ""}
+                          data-testid="input-task-estimated-hours"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateDialogOpen(false)}
+                  data-testid="button-cancel-create-task"
+                >
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createTaskMutation.isPending}
+                  data-testid="button-submit-create-task"
+                >
+                  {createTaskMutation.isPending ? "创建中..." : "创建任务"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent data-testid="dialog-edit-task">
+          <DialogHeader>
+            <DialogTitle>编辑任务</DialogTitle>
+            <DialogDescription>
+              修改任务详细信息，更新工作进度。
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>任务标题 *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="输入任务标题"
+                        {...field}
+                        data-testid="input-edit-task-title"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>任务描述</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="输入任务描述（可选）"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="input-edit-task-description"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="projectId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>所属项目 *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-task-project">
+                            <SelectValue placeholder="选择项目" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {projects.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>任务状态</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-task-status">
+                            <SelectValue placeholder="选择状态" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={TaskStatus.TODO}>待办</SelectItem>
+                          <SelectItem value={TaskStatus.IN_PROGRESS}>进行中</SelectItem>
+                          <SelectItem value={TaskStatus.DONE}>已完成</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>优先级</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-task-priority">
+                            <SelectValue placeholder="选择优先级" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={TaskPriority.LOW}>低</SelectItem>
+                          <SelectItem value={TaskPriority.MEDIUM}>中</SelectItem>
+                          <SelectItem value={TaskPriority.HIGH}>高</SelectItem>
+                          <SelectItem value={TaskPriority.URGENT}>紧急</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>到期日期</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                          data-testid="input-edit-task-due-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="estimatedHours"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>预估工时（小时）</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          value={field.value || ""}
+                          data-testid="input-edit-task-estimated-hours"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="actualHours"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>实际工时（小时）</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          value={field.value || ""}
+                          data-testid="input-edit-task-actual-hours"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                  data-testid="button-cancel-edit-task"
+                >
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateTaskMutation.isPending}
+                  data-testid="button-submit-edit-task"
+                >
+                  {updateTaskMutation.isPending ? "更新中..." : "更新任务"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

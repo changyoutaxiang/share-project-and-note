@@ -21,7 +21,12 @@ export const tasks = pgTable("tasks", {
   description: text("description"),
   status: varchar("status", { length: 20 }).notNull().default("todo"), // todo, in_progress, done
   priority: varchar("priority", { length: 10 }).notNull().default("medium"), // low, medium, high, urgent
-  dueDate: timestamp("due_date"),
+  dueDate: timestamp("due_date"), // 保留用于兼容性
+  startDate: timestamp("start_date"), // 甘特图开始时间
+  endDate: timestamp("end_date"), // 甘特图结束时间
+  progress: integer("progress").default(0), // 完成进度 0-100
+  dependencies: text("dependencies").array(), // 依赖任务ID列表
+  milestoneId: varchar("milestone_id"), // 关联里程碑ID
   estimatedHours: integer("estimated_hours"),
   actualHours: integer("actual_hours"),
   tags: text("tags").array(),
@@ -34,6 +39,18 @@ export const tags = pgTable("tags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   color: varchar("color", { length: 7 }).notNull().default("#3B82F6"), // hex color
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Milestones table for Gantt chart
+export const milestones = pgTable("milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  date: timestamp("date").notNull(),
+  color: varchar("color", { length: 7 }).notNull().default("#EF4444"), // hex color
+  completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -54,6 +71,11 @@ export const insertTagSchema = createInsertSchema(tags).omit({
   createdAt: true,
 });
 
+export const insertMilestoneSchema = createInsertSchema(milestones).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
@@ -63,6 +85,9 @@ export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 export type Tag = typeof tags.$inferSelect;
 export type InsertTag = z.infer<typeof insertTagSchema>;
+
+export type Milestone = typeof milestones.$inferSelect;
+export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 
 // Enums for better type safety
 export const TaskStatus = {

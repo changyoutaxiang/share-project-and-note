@@ -14,12 +14,11 @@ import {
   FolderOpen,
   Kanban,
   List,
-  Plus,
   Settings,
   Home,
+  Calendar,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
 
 const mainItems = [
   {
@@ -47,8 +46,14 @@ const mainItems = [
     id: "tasks",
   },
   {
+    title: "甘特图",
+    url: "/gantt",
+    icon: Calendar,
+    id: "gantt",
+  },
+  {
     title: "统计",
-    url: "/analytics", 
+    url: "/analytics",
     icon: BarChart3,
     id: "analytics",
   },
@@ -63,57 +68,15 @@ const settingsItems = [
   },
 ];
 
-interface AppSidebarProps {
-  onCreateProject?: () => void;
-  onCreateTask?: () => void;
-}
+interface AppSidebarProps {}
 
-export default function AppSidebar({ onCreateProject, onCreateTask }: AppSidebarProps) {
+export default function AppSidebar({}: AppSidebarProps) {
   const [location] = useLocation();
-
-  const handleCreateProject = () => {
-    onCreateProject?.();
-    console.log("Create new project clicked");
-  };
-
-  const handleCreateTask = () => {
-    onCreateTask?.();
-    console.log("Create new task clicked");
-  };
 
   return (
     <Sidebar data-testid="app-sidebar">
       <SidebarContent>
-        {/* Quick Actions */}
-        <SidebarGroup>
-          <SidebarGroupLabel>快速操作</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="space-y-2 px-2">
-              <Button
-                onClick={handleCreateProject}
-                className="w-full justify-start"
-                variant="outline"
-                size="sm"
-                data-testid="button-create-project"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                新建项目
-              </Button>
-              <Button
-                onClick={handleCreateTask}
-                className="w-full justify-start"
-                variant="outline"
-                size="sm"
-                data-testid="button-create-task"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                新建任务
-              </Button>
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Main Navigation */}
+{/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>导航</SidebarGroupLabel>
           <SidebarGroupContent>

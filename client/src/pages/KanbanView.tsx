@@ -87,8 +87,13 @@ export default function KanbanView() {
   };
 
   const handleEditTask = (task: Task) => {
+    // Navigate to task list with the task in edit mode
+    // For now, just log and show toast indicating feature location
     console.log("Edit task:", task);
-    // todo: implement task editing modal
+    toast({
+      title: "编辑任务",
+      description: "请前往「任务列表」页面进行任务编辑操作。",
+    });
   };
 
   const handleDeleteTask = (taskId: string) => {

@@ -110,15 +110,17 @@ export default function TaskCard({ task, onEdit, onDelete, onStatusChange }: Tas
               >
                 标记为完成
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit?.(task);
-                }}
-                data-testid={`button-edit-${task.id}`}
-              >
-                编辑任务
-              </DropdownMenuItem>
+              {onEdit && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(task);
+                  }}
+                  data-testid={`button-edit-${task.id}`}
+                >
+                  编辑任务
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onClick={(e) => {
                   e.stopPropagation();

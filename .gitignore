@@ -4,3 +4,8 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# 环境变量和敏感配置
+.env
+.env.local
+.env.supabase

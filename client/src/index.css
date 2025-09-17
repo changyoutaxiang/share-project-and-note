@@ -292,3 +292,82 @@
     inset: -1px;
   }
 }
+
+/* Frappe Gantt Styles */
+.gantt-container {
+  width: 100%;
+  position: relative;
+}
+
+.gantt-container .gantt {
+  overflow: auto;
+}
+
+.gantt-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Gantt chart task bars */
+.gantt-container .bar,
+.gantt-container rect.bar {
+  fill: #4f46e5 !important;
+  stroke: #3730a3 !important;
+  stroke-width: 1 !important;
+  cursor: pointer !important;
+}
+
+.gantt-container .bar.priority-high,
+.gantt-container rect.bar.priority-high {
+  fill: #dc2626 !important;
+  stroke: #991b1b !important;
+}
+
+.gantt-container .bar.priority-medium,
+.gantt-container rect.bar.priority-medium {
+  fill: #ea580c !important;
+  stroke: #c2410c !important;
+}
+
+.gantt-container .bar.priority-low,
+.gantt-container rect.bar.priority-low {
+  fill: #16a34a !important;
+  stroke: #15803d !important;
+}
+
+/* Force visibility for all SVG elements */
+.gantt-container svg * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.gantt-container svg rect {
+  fill: #4f46e5 !important;
+  stroke: #3730a3 !important;
+  stroke-width: 1 !important;
+}
+
+/* Gantt chart grid lines */
+.gantt .grid-line {
+  stroke: #e5e7eb;
+  stroke-width: 1;
+}
+
+/* Gantt chart text */
+.gantt .bar-label {
+  fill: white;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.gantt .tick {
+  fill: #374151;
+  font-size: 11px;
+}
+
+/* Gantt chart dependencies */
+.gantt .arrow {
+  stroke: #6b7280;
+  stroke-width: 2;
+  fill: none;
+}
