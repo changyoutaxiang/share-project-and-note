@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
+import { projectApi, taskApi } from "@/lib/api";
 import { Project, InsertProject, ProjectStatus } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,13 +53,13 @@ export default function Projects() {
   // Fetch projects
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
     queryKey: ["/api/projects"],
-    queryFn: () => fetch("/api/projects").then(res => res.json()) as Promise<Project[]>,
+    queryFn: () => projectApi.getAll(),
   });
 
   // Fetch tasks for statistics
   const { data: allTasks = [] } = useQuery({
     queryKey: ["/api/tasks"],
-    queryFn: () => fetch("/api/tasks").then(res => res.json()),
+    queryFn: () => taskApi.getAll(),
   });
 
   // Create form
@@ -85,7 +86,7 @@ export default function Projects() {
 
   // Create project mutation
   const createProjectMutation = useMutation({
-    mutationFn: (data: InsertProject) => apiRequest("POST", "/api/projects", data),
+    mutationFn: (data: InsertProject) => projectApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setCreateDialogOpen(false);
@@ -106,8 +107,8 @@ export default function Projects() {
 
   // Update project mutation
   const updateProjectMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<InsertProject> }) => 
-      apiRequest("PUT", `/api/projects/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<InsertProject> }) =>
+      projectApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setEditDialogOpen(false);
@@ -129,7 +130,7 @@ export default function Projects() {
 
   // Delete project mutation
   const deleteProjectMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/projects/${id}`),
+    mutationFn: (id: string) => projectApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       toast({
