@@ -9,3 +9,12 @@ vite.config.ts.*
 .env
 .env.local
 .env.supabase
+.env.production
+
+# 本地文件
+.local/
+.cursor/
+.mcp.json
+.playwright-mcp/
+server/storage.ts.backup
+甘特图组件/
