@@ -88,9 +88,10 @@ export default function KanbanView() {
       setIsCreateTaskOpen(false);
     },
     onError: (error) => {
+      console.error("Task creation error:", error);
       toast({
         title: "创建失败",
-        description: error.message,
+        description: error.message || "请检查是否选择了项目",
         variant: "destructive"
       });
     },
@@ -149,7 +150,12 @@ export default function KanbanView() {
             拖拽任务卡片来更新状态
           </p>
         </div>
-        <Button onClick={() => handleAddTask(TaskStatus.TODO)} data-testid="button-add-task">
+        <Button
+          onClick={() => handleAddTask(TaskStatus.TODO)}
+          disabled={projects.length === 0}
+          data-testid="button-add-task"
+          title={projects.length === 0 ? "请先创建项目" : ""}
+        >
           <Plus className="w-4 h-4 mr-2" />
           新建任务
         </Button>

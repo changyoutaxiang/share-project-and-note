@@ -150,11 +150,17 @@ export default function CreateTaskDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
+                      {projects.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          暂无项目，请先创建项目
                         </SelectItem>
-                      ))}
+                      ) : (
+                        projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
