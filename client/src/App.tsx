@@ -11,8 +11,6 @@ import Dashboard from "@/pages/Dashboard";
 import KanbanView from "@/pages/KanbanView";
 import TaskList from "@/pages/TaskList";
 import Projects from "@/pages/Projects";
-import Analytics from "@/pages/Analytics";
-import GanttChart from "@/pages/GanttChart";
 import NotFound from "@/pages/NotFound";
 
 function Router() {
@@ -22,8 +20,6 @@ function Router() {
       <Route path="/kanban" component={KanbanView} />
       <Route path="/projects" component={Projects} />
       <Route path="/tasks" component={TaskList} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/gantt" component={GanttChart} />
       <Route path="/settings" component={() => <div className="p-6">设置页面开发中...</div>} />
       <Route component={NotFound} />
     </Switch>

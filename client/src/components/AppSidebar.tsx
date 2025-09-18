@@ -10,13 +10,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
-  BarChart3,
   FolderOpen,
   Kanban,
   List,
   Settings,
   Home,
-  Calendar,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -44,18 +42,6 @@ const mainItems = [
     url: "/tasks",
     icon: List,
     id: "tasks",
-  },
-  {
-    title: "甘特图",
-    url: "/gantt",
-    icon: Calendar,
-    id: "gantt",
-  },
-  {
-    title: "统计",
-    url: "/analytics",
-    icon: BarChart3,
-    id: "analytics",
   },
 ];
 

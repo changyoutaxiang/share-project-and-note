@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import DashboardStats from "@/components/DashboardStats";
 import ProjectCard from "@/components/ProjectCard";
 import TaskCard from "@/components/TaskCard";
 import SearchBar from "@/components/SearchBar";
@@ -261,11 +260,6 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Statistics */}
-      {!projectsLoading && !tasksLoading && (
-        <DashboardStats projects={projects} tasks={tasks} />
       )}
 
       {/* Content Grid */}

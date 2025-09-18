@@ -230,57 +230,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analytics routes
-  app.get("/api/analytics/overview", async (req, res) => {
-    try {
-      const overview = await storage.getOverviewStats();
-      res.json(overview);
-    } catch (error) {
-      console.error("Error fetching overview stats:", error);
-      res.status(500).json({ error: "Failed to fetch overview stats" });
-    }
-  });
-
-  app.get("/api/analytics/risk", async (req, res) => {
-    try {
-      const risk = await storage.getRiskAnalysis();
-      res.json(risk);
-    } catch (error) {
-      console.error("Error fetching risk analysis:", error);
-      res.status(500).json({ error: "Failed to fetch risk analysis" });
-    }
-  });
-
-  app.get("/api/analytics/resource", async (req, res) => {
-    try {
-      const resource = await storage.getResourceUtilization();
-      res.json(resource);
-    } catch (error) {
-      console.error("Error fetching resource utilization:", error);
-      res.status(500).json({ error: "Failed to fetch resource utilization" });
-    }
-  });
-
-  app.get("/api/analytics/efficiency", async (req, res) => {
-    try {
-      const efficiency = await storage.getEfficiencyStats();
-      res.json(efficiency);
-    } catch (error) {
-      console.error("Error fetching efficiency stats:", error);
-      res.status(500).json({ error: "Failed to fetch efficiency stats" });
-    }
-  });
-
-  app.get("/api/analytics/agile", async (req, res) => {
-    try {
-      const agile = await storage.getAgileMetrics();
-      res.json(agile);
-    } catch (error) {
-      console.error("Error fetching agile metrics:", error);
-      res.status(500).json({ error: "Failed to fetch agile metrics" });
-    }
-  });
-
   // Milestone routes
   app.get("/api/milestones", async (req, res) => {
     try {
@@ -354,75 +303,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Gantt chart routes
-  app.get("/api/gantt/project/:id", async (req, res) => {
-    try {
-      const ganttData = await storage.getGanttData(req.params.id);
-      res.json(ganttData);
-    } catch (error) {
-      console.error("Error fetching Gantt data:", error);
-      res.status(500).json({ error: "Failed to fetch Gantt data" });
-    }
-  });
-
-  app.patch("/api/tasks/:id/schedule", async (req, res) => {
-    try {
-      const { startDate, endDate } = req.body;
-      if (!startDate || !endDate) {
-        return res.status(400).json({ error: "Start date and end date are required" });
-      }
-
-      const task = await storage.updateTaskSchedule(
-        req.params.id,
-        new Date(startDate),
-        new Date(endDate)
-      );
-
-      if (!task) {
-        return res.status(404).json({ error: "Task not found" });
-      }
-      res.json(task);
-    } catch (error) {
-      console.error("Error updating task schedule:", error);
-      res.status(500).json({ error: "Failed to update task schedule" });
-    }
-  });
-
-  app.patch("/api/tasks/:id/progress", async (req, res) => {
-    try {
-      const { progress } = req.body;
-      if (typeof progress !== 'number') {
-        return res.status(400).json({ error: "Progress must be a number" });
-      }
-
-      const task = await storage.updateTaskProgress(req.params.id, progress);
-      if (!task) {
-        return res.status(404).json({ error: "Task not found" });
-      }
-      res.json(task);
-    } catch (error) {
-      console.error("Error updating task progress:", error);
-      res.status(500).json({ error: "Failed to update task progress" });
-    }
-  });
-
-  app.post("/api/tasks/:id/dependencies", async (req, res) => {
-    try {
-      const { dependencies } = req.body;
-      if (!Array.isArray(dependencies)) {
-        return res.status(400).json({ error: "Dependencies must be an array" });
-      }
-
-      const task = await storage.updateTaskDependencies(req.params.id, dependencies);
-      if (!task) {
-        return res.status(404).json({ error: "Task not found" });
-      }
-      res.json(task);
-    } catch (error) {
-      console.error("Error updating task dependencies:", error);
-      res.status(500).json({ error: "Failed to update task dependencies" });
-    }
-  });
 
   // Health check route
   app.get("/api/health", (req, res) => {
