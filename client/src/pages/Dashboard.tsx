@@ -4,6 +4,8 @@ import DashboardStats from "@/components/DashboardStats";
 import ProjectCard from "@/components/ProjectCard";
 import TaskCard from "@/components/TaskCard";
 import SearchBar from "@/components/SearchBar";
+import CreateProjectDialog from "@/components/CreateProjectDialog";
+import CreateTaskDialog from "@/components/CreateTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Calendar, Clock, Loader2 } from "lucide-react";
@@ -13,6 +15,8 @@ import { projectApi, taskApi, searchApi } from "@/lib/api";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,10 +94,42 @@ export default function Dashboard() {
       toast({ title: "项目已删除" });
     },
     onError: (error) => {
-      toast({ 
-        title: "删除失败", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "删除失败",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: projectApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "项目创建成功" });
+      setIsCreateProjectOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "创建失败",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: taskApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务创建成功" });
+      setIsCreateTaskOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "创建失败",
+        description: error.message,
+        variant: "destructive"
       });
     },
   });
@@ -117,13 +153,11 @@ export default function Dashboard() {
     .slice(0, 3);
 
   const handleCreateProject = () => {
-    console.log("Create new project");
-    // todo: implement project creation modal
+    setIsCreateProjectOpen(true);
   };
 
   const handleCreateTask = () => {
-    console.log("Create new task");
-    // todo: implement task creation modal
+    setIsCreateTaskOpen(true);
   };
 
   const handleEditTask = (task: Task) => {
@@ -329,6 +363,24 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialogs */}
+      <CreateProjectDialog
+        open={isCreateProjectOpen}
+        onOpenChange={setIsCreateProjectOpen}
+        onSubmit={async (data) => {
+          await createProjectMutation.mutateAsync(data);
+        }}
+      />
+
+      <CreateTaskDialog
+        open={isCreateTaskOpen}
+        onOpenChange={setIsCreateTaskOpen}
+        onSubmit={async (data) => {
+          await createTaskMutation.mutateAsync(data);
+        }}
+        projects={projects}
+      />
     </div>
   );
 }
