@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import KanbanColumn from "@/components/KanbanColumn";
 import SearchBar from "@/components/SearchBar";
+import CreateTaskDialog from "@/components/CreateTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,8 @@ import { taskApi, searchApi, projectApi } from "@/lib/api";
 export default function KanbanView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [defaultTaskStatus, setDefaultTaskStatus] = useState<TaskStatusType>(TaskStatus.TODO);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -69,10 +72,26 @@ export default function KanbanView() {
       toast({ title: "任务已删除" });
     },
     onError: (error) => {
-      toast({ 
-        title: "删除失败", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "删除失败",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: taskApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "任务创建成功" });
+      setIsCreateTaskOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "创建失败",
+        description: error.message,
+        variant: "destructive"
       });
     },
   });
@@ -91,8 +110,8 @@ export default function KanbanView() {
   const doneTasks = filteredTasks.filter(task => task.status === TaskStatus.DONE);
 
   const handleAddTask = (status: TaskStatusType) => {
-    console.log(`Add new task with status: ${status}`);
-    // todo: implement task creation modal
+    setDefaultTaskStatus(status);
+    setIsCreateTaskOpen(true);
   };
 
   const handleEditTask = (task: Task) => {
@@ -265,6 +284,22 @@ export default function KanbanView() {
           />
         </div>
       )}
+
+      {/* Create Task Dialog */}
+      <CreateTaskDialog
+        open={isCreateTaskOpen}
+        onOpenChange={setIsCreateTaskOpen}
+        onSubmit={async (data) => {
+          // Set the default status based on which column's "Add Task" was clicked
+          const taskData = {
+            ...data,
+            status: defaultTaskStatus
+          };
+          await createTaskMutation.mutateAsync(taskData);
+        }}
+        projects={projects}
+        defaultProjectId={selectedProject || undefined}
+      />
     </div>
   );
 }
