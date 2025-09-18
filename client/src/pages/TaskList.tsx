@@ -54,7 +54,6 @@ interface SortConfig {
 
 export default function TaskList() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -178,26 +177,6 @@ export default function TaskList() {
     },
   });
 
-  // Batch delete mutation
-  const batchDeleteMutation = useMutation({
-    mutationFn: async (taskIds: string[]) => {
-      for (const id of taskIds) {
-        await taskApi.delete(id);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      setSelectedTasks(new Set());
-      toast({ title: "批量删除成功" });
-    },
-    onError: (error) => {
-      toast({ 
-        title: "批量删除失败", 
-        description: error.message, 
-        variant: "destructive" 
-      });
-    },
-  });
 
   // Update task status mutation
   const updateStatusMutation = useMutation({
@@ -299,39 +278,6 @@ export default function TaskList() {
     }));
   };
 
-  // Handle task selection
-  const handleTaskSelect = (taskId: string, checked: boolean) => {
-    const newSelected = new Set(selectedTasks);
-    if (checked) {
-      newSelected.add(taskId);
-    } else {
-      newSelected.delete(taskId);
-    }
-    setSelectedTasks(newSelected);
-  };
-
-  // Handle select all
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedTasks(new Set(filteredTasks.map(task => task.id)));
-    } else {
-      setSelectedTasks(new Set());
-    }
-  };
-
-  // Handle batch operations
-  const handleBatchDelete = () => {
-    if (selectedTasks.size > 0) {
-      batchDeleteMutation.mutate(Array.from(selectedTasks));
-    }
-  };
-
-  const handleBatchStatusUpdate = (status: TaskStatusType) => {
-    Array.from(selectedTasks).forEach(taskId => {
-      updateStatusMutation.mutate({ taskId, status });
-    });
-    setSelectedTasks(new Set());
-  };
 
   // Handle form submission
   const onCreateSubmit = (data: z.infer<typeof insertTaskSchema>) => {
@@ -518,40 +464,6 @@ export default function TaskList() {
               </div>
             </div>
 
-            {/* Batch Operations */}
-            {selectedTasks.size > 0 && (
-              <div className="flex gap-2 items-center">
-                <span className="text-sm text-muted-foreground">
-                  已选择 {selectedTasks.size} 个任务
-                </span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" data-testid="button-batch-operations">
-                      批量操作
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleBatchStatusUpdate(TaskStatus.TODO)}>
-                      标记为待办
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleBatchStatusUpdate(TaskStatus.IN_PROGRESS)}>
-                      标记为进行中
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleBatchStatusUpdate(TaskStatus.DONE)}>
-                      标记为已完成
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={handleBatchDelete}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      批量删除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -560,12 +472,8 @@ export default function TaskList() {
       <Card>
         <CardHeader className="border-b bg-muted/30">
           <div className="grid grid-cols-[auto_1fr_120px_100px_100px_120px_auto] gap-4 items-center text-sm font-medium text-muted-foreground">
-            <div className="flex items-center">
-              <Checkbox
-                checked={selectedTasks.size === filteredTasks.length && filteredTasks.length > 0}
-                onCheckedChange={handleSelectAll}
-                data-testid="checkbox-select-all"
-              />
+            <div className="text-center">
+              完成
             </div>
             <Button
               variant="ghost"
@@ -637,14 +545,20 @@ export default function TaskList() {
               {filteredTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="grid grid-cols-[auto_1fr_120px_100px_100px_120px_auto] gap-4 items-center p-4 hover:bg-muted/50 transition-colors"
+                  className="grid grid-cols-[auto_1fr_120px_100px_100px_120px_auto] gap-4 items-center p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                   data-testid={`task-row-${task.id}`}
+                  onClick={() => handleEditTask(task)}
                 >
-                  {/* Checkbox */}
-                  <div className="flex items-center">
+                  {/* Complete/Incomplete Toggle */}
+                  <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
-                      checked={selectedTasks.has(task.id)}
-                      onCheckedChange={(checked) => handleTaskSelect(task.id, checked as boolean)}
+                      checked={task.status === TaskStatus.DONE}
+                      onCheckedChange={(checked) => {
+                        updateStatusMutation.mutate({
+                          taskId: task.id,
+                          status: checked ? TaskStatus.DONE : TaskStatus.TODO
+                        });
+                      }}
                       data-testid={`checkbox-task-${task.id}`}
                     />
                   </div>
@@ -719,11 +633,11 @@ export default function TaskList() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="icon"
                           data-testid={`button-task-actions-${task.id}`}
                         >
@@ -731,11 +645,6 @@ export default function TaskList() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ taskId: task.id, status: TaskStatus.TODO })}>
                           标记为待办
                         </DropdownMenuItem>
@@ -746,7 +655,7 @@ export default function TaskList() {
                           标记为已完成
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => deleteTaskMutation.mutate(task.id)}
                           className="text-destructive focus:text-destructive"
                         >
