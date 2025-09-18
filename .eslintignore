@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.local/
+*.min.js
+*.config.js
+vite.config.ts

@@ -23,25 +23,21 @@ export default function SearchBar({
   // Trigger search when debounced query changes
   useEffect(() => {
     onSearch?.(debouncedQuery);
-    console.log("Debounced search for:", debouncedQuery);
   }, [debouncedQuery, onSearch]);
 
   const handleInputChange = (value: string) => {
     setQuery(value);
-    console.log("Input changed:", value);
   };
 
   const handleClear = () => {
     setQuery("");
     onClear?.();
-    console.log("Search cleared");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       // Force immediate search on Enter
       onSearch?.(query);
-      console.log("Immediate search for:", query);
     }
   };
 

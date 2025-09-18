@@ -46,7 +46,6 @@ export default function ProjectCard({
 
   const handleOpen = () => {
     onOpen?.(project.id);
-    console.log(`Opening project: ${project.id}`);
   };
 
   return (

@@ -50,7 +50,6 @@ export default function KanbanColumn({
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(true);
-    console.log(`DragOver on ${status}`);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -59,7 +58,6 @@ export default function KanbanColumn({
     // Only set false if leaving the drop zone itself, not child elements
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragOver(false);
-      console.log(`DragLeave from ${status}`);
     }
   };
 
@@ -68,9 +66,7 @@ export default function KanbanColumn({
     e.stopPropagation();
     setIsDragOver(false);
     
-    console.log(`Drop event triggered on ${status}`);
     const taskId = e.dataTransfer.getData("text/plain");
-    console.log(`Task ID from dataTransfer: ${taskId}`);
     
     if (taskId && onStatusChange) {
       console.log(`Calling onStatusChange for task ${taskId} -> ${status}`);

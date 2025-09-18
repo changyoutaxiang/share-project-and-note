@@ -36,7 +36,6 @@ export default function TaskCard({ task, onEdit, onDelete, onStatusChange }: Tas
 
   const handleStatusChange = (newStatus: string) => {
     onStatusChange?.(task.id, newStatus);
-    console.log(`Task ${task.id} status changed to ${newStatus}`);
   };
 
   const formatDate = (date: Date | null) => {
