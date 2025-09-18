@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Filter, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Task, TaskStatus, TaskPriority, TaskStatusType } from "@shared/schema";
-import { taskApi, searchApi } from "@/lib/api";
+import { Task, TaskStatus, TaskPriority, TaskStatusType, Project } from "@shared/schema";
+import { taskApi, searchApi, projectApi } from "@/lib/api";
 
 export default function KanbanView() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -17,14 +17,23 @@ export default function KanbanView() {
   const queryClient = useQueryClient();
 
   // Fetch tasks from API
-  const { 
-    data: allTasks = [], 
+  const {
+    data: allTasks = [],
     isLoading: tasksLoading,
     error: tasksError,
-    refetch: refetchTasks 
+    refetch: refetchTasks
   } = useQuery({
     queryKey: ["/api/tasks"],
     queryFn: () => taskApi.getAll(),
+  });
+
+  // Fetch projects from API
+  const {
+    data: projects = [],
+    isLoading: projectsLoading
+  } = useQuery({
+    queryKey: ["/api/projects"],
+    queryFn: projectApi.getAll,
   });
 
   const { data: searchResults, isLoading: searchLoading } = useQuery({
@@ -104,7 +113,10 @@ export default function KanbanView() {
     updateTaskStatusMutation.mutate({ taskId, status: newStatus });
   };
 
-  const projects = Array.from(new Set(allTasks.map(task => task.projectId)));
+  // Get unique project IDs from tasks for filtering
+  const projectsWithTasks = projects.filter(project =>
+    allTasks.some(task => task.projectId === project.id)
+  );
 
   return (
     <div className="space-y-6" data-testid="page-kanban">
@@ -142,7 +154,7 @@ export default function KanbanView() {
             />
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">项目:</span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   variant={selectedProject === null ? "default" : "outline"}
                   size="sm"
@@ -151,15 +163,15 @@ export default function KanbanView() {
                 >
                   全部
                 </Button>
-                {projects.map(projectId => (
+                {projectsWithTasks.map(project => (
                   <Button
-                    key={projectId}
-                    variant={selectedProject === projectId ? "default" : "outline"}
+                    key={project.id}
+                    variant={selectedProject === project.id ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setSelectedProject(projectId)}
-                    data-testid={`button-filter-${projectId}`}
+                    onClick={() => setSelectedProject(project.id)}
+                    data-testid={`button-filter-${project.id}`}
                   >
-                    {projectId}
+                    {project.name}
                   </Button>
                 ))}
               </div>
@@ -169,10 +181,10 @@ export default function KanbanView() {
       </Card>
 
       {/* Loading State */}
-      {tasksLoading && (
+      {(tasksLoading || projectsLoading) && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />
-          <span className="text-muted-foreground">加载任务中...</span>
+          <span className="text-muted-foreground">加载数据中...</span>
         </div>
       )}
 
@@ -198,7 +210,7 @@ export default function KanbanView() {
       )}
 
       {/* Stats Summary */}
-      {!tasksLoading && (
+      {!tasksLoading && !projectsLoading && (
         <div className="flex gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-gray-400"></div>
@@ -222,7 +234,7 @@ export default function KanbanView() {
       )}
 
       {/* Kanban Board */}
-      {!tasksLoading && (
+      {!tasksLoading && !projectsLoading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[600px]" data-testid="kanban-board">
           <KanbanColumn
             title="待办"
