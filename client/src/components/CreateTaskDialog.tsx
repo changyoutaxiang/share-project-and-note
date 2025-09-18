@@ -255,7 +255,7 @@ export default function CreateTaskDialog({
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>截止日期</FormLabel>
+                    <FormLabel>执行日期</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>

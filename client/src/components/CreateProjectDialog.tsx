@@ -153,7 +153,7 @@ export default function CreateProjectDialog({
               name="dueDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>截止日期</FormLabel>
+                  <FormLabel>执行日期</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -167,7 +167,7 @@ export default function CreateProjectDialog({
                           {field.value ? (
                             format(field.value, "PPP", { locale: zhCN })
                           ) : (
-                            <span>选择截止日期（选填）</span>
+                            <span>选择执行日期（选填）</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -185,7 +185,7 @@ export default function CreateProjectDialog({
                       />
                     </PopoverContent>
                   </Popover>
-                  <FormDescription>设置项目的目标完成日期</FormDescription>
+                  <FormDescription>设置项目应该被执行的日期</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

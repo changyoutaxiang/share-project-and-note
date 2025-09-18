@@ -610,7 +610,7 @@ export default function TaskList() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleSort("dueDate")}>到期日期</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSort("dueDate")}>执行日期</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleSort("createdAt")}>创建时间</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleSort("updatedAt")}>更新时间</DropdownMenuItem>
               </DropdownMenuContent>
@@ -864,7 +864,7 @@ export default function TaskList() {
                   name="dueDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>到期日期</FormLabel>
+                      <FormLabel>执行日期</FormLabel>
                       <FormControl>
                         <Input
                           type="date"
@@ -1045,7 +1045,7 @@ export default function TaskList() {
                   name="dueDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>到期日期</FormLabel>
+                      <FormLabel>执行日期</FormLabel>
                       <FormControl>
                         <Input
                           type="date"

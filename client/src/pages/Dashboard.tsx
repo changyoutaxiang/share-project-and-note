@@ -330,7 +330,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <Calendar className="w-5 h-5" />
-              即将到期的任务
+              即将执行的任务
             </CardTitle>
           </CardHeader>
           <CardContent>
