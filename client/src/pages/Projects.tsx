@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { projectApi, taskApi } from "@/lib/api";
-import { Project, InsertProject, ProjectStatus } from "@shared/schema";
+import { Project, InsertProject, ProjectStatus, ProjectGroup } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,38 +22,63 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
-import { 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  Calendar, 
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  Calendar,
   Archive,
   CheckCircle,
   Circle,
   Clock,
-  FolderOpen
+  FolderOpen,
+  Folders
 } from "lucide-react";
+import BreadcrumbNav, { createBreadcrumbItems } from "@/components/BreadcrumbNav";
 
 export default function Projects() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "archived">("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-  
+
   const [, navigate] = useLocation();
+
+  // Get groupId from URL query parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlGroupId = urlParams.get('groupId');
+  if (urlGroupId && groupFilter === "all") {
+    setGroupFilter(urlGroupId);
+  }
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Fetch projects
+  // Fetch project groups
+  const { data: projectGroups = [] } = useQuery({
+    queryKey: ["project-groups"],
+    queryFn: async () => {
+      const response = await fetch("/api/project-groups");
+      if (!response.ok) throw new Error("Failed to fetch project groups");
+      return response.json() as Promise<ProjectGroup[]>;
+    },
+  });
+
+  // Fetch projects (with optional groupId filter)
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
-    queryKey: ["/api/projects"],
-    queryFn: () => projectApi.getAll(),
+    queryKey: ["/api/projects", groupFilter !== "all" ? groupFilter : undefined],
+    queryFn: () => {
+      if (groupFilter !== "all") {
+        return projectApi.getAll(`?groupId=${groupFilter}`);
+      }
+      return projectApi.getAll();
+    },
   });
 
   // Fetch tasks for statistics
@@ -70,6 +95,7 @@ export default function Projects() {
       description: "",
       status: "active",
       dueDate: undefined,
+      groupId: urlGroupId || "none",
     },
   });
 
@@ -87,8 +113,15 @@ export default function Projects() {
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: (data: InsertProject) => projectApi.create(data),
-    onSuccess: () => {
+    onSuccess: (_, data) => {
+      // Invalidate all projects queries
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+
+      // If the new project has a groupId, invalidate that group's projects query
+      if (data.groupId) {
+        queryClient.invalidateQueries({ queryKey: ["projects", data.groupId] });
+      }
+
       setCreateDialogOpen(false);
       createForm.reset();
       toast({
@@ -109,8 +142,23 @@ export default function Projects() {
   const updateProjectMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<InsertProject> }) =>
       projectApi.update(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id, data }) => {
+      // Invalidate all projects queries
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+
+      // Find the original project to get its old groupId
+      const originalProject = projects.find(p => p.id === id);
+
+      // Invalidate the old project group's projects query if it had one
+      if (originalProject?.groupId) {
+        queryClient.invalidateQueries({ queryKey: ["projects", originalProject.groupId] });
+      }
+
+      // Invalidate the new project group's projects query if it has one
+      if (data.groupId) {
+        queryClient.invalidateQueries({ queryKey: ["projects", data.groupId] });
+      }
+
       setEditDialogOpen(false);
       setEditingProject(null);
       editForm.reset();
@@ -131,8 +179,18 @@ export default function Projects() {
   // Delete project mutation
   const deleteProjectMutation = useMutation({
     mutationFn: (id: string) => projectApi.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      // Find the project to get its groupId before deletion
+      const deletedProject = projects.find(p => p.id === id);
+
+      // Invalidate all projects queries
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+
+      // If the deleted project had a groupId, invalidate that group's projects query
+      if (deletedProject?.groupId) {
+        queryClient.invalidateQueries({ queryKey: ["projects", deletedProject.groupId] });
+      }
+
       toast({
         title: "项目删除成功",
         description: "项目已成功删除。",
@@ -182,12 +240,22 @@ export default function Projects() {
 
   // Handle form submissions
   const onCreateSubmit = (data: z.infer<typeof insertProjectSchema>) => {
-    createProjectMutation.mutate(data);
+    // Convert "none" to undefined for groupId
+    const submitData = {
+      ...data,
+      groupId: data.groupId === "none" ? undefined : data.groupId,
+    };
+    createProjectMutation.mutate(submitData);
   };
 
   const onEditSubmit = (data: z.infer<typeof insertProjectSchema>) => {
     if (editingProject) {
-      updateProjectMutation.mutate({ id: editingProject.id, data });
+      // Convert "none" to undefined for groupId
+      const submitData = {
+        ...data,
+        groupId: data.groupId === "none" ? undefined : data.groupId,
+      };
+      updateProjectMutation.mutate({ id: editingProject.id, data: submitData });
     }
   };
 
@@ -199,6 +267,7 @@ export default function Projects() {
       description: project.description || "",
       status: project.status as "active" | "archived",
       dueDate: project.dueDate ? new Date(project.dueDate) : undefined,
+      groupId: project.groupId || "none",
     });
     setEditDialogOpen(true);
   };
@@ -317,13 +386,44 @@ export default function Projects() {
                     <FormItem>
                       <FormLabel>项目描述</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="输入项目描述（可选）" 
+                        <Textarea
+                          placeholder="输入项目描述（可选）"
                           {...field}
-                          value={field.value || ""} 
+                          value={field.value || ""}
                           data-testid="input-project-description"
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={createForm.control}
+                  name="groupId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>项目组</FormLabel>
+                      <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-project-group">
+                            <SelectValue placeholder="选择项目组（可选）" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">无项目组</SelectItem>
+                          {projectGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: group.color }}
+                                />
+                                {group.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -370,6 +470,18 @@ export default function Projects() {
         </Dialog>
       </div>
 
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNav
+        items={[
+          { label: "项目组", href: "/project-groups", icon: Folders },
+          ...(groupFilter !== "all" && projectGroups.find(g => g.id === groupFilter)
+            ? [createBreadcrumbItems.projectGroup(projectGroups.find(g => g.id === groupFilter)!)]
+            : []
+          ),
+          { label: "项目", icon: FolderOpen }
+        ]}
+      />
+
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -382,6 +494,28 @@ export default function Projects() {
             data-testid="input-search-projects"
           />
         </div>
+
+        {/* Project Group Filter */}
+        <Select value={groupFilter} onValueChange={setGroupFilter}>
+          <SelectTrigger className="w-[200px]" data-testid="select-group-filter">
+            <SelectValue placeholder="筛选项目组" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="group-filter-all">全部项目组</SelectItem>
+            {projectGroups.map((group) => (
+              <SelectItem key={group.id} value={group.id} data-testid={`group-filter-${group.id}`}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: group.color }}
+                  />
+                  {group.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select value={statusFilter} onValueChange={(value: "all" | "active" | "archived") => setStatusFilter(value)}>
           <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
             <SelectValue placeholder="筛选状态" />
@@ -465,12 +599,26 @@ export default function Projects() {
                   </div>
                   
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge 
+                    <Badge
                       className={statusConfig[project.status as keyof typeof statusConfig].color}
                       data-testid={`project-status-${project.id}`}
                     >
                       {statusConfig[project.status as keyof typeof statusConfig].label}
                     </Badge>
+
+                    {/* Project Group Badge */}
+                    {project.groupId && projectGroups.find(g => g.id === project.groupId) && (
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: projectGroups.find(g => g.id === project.groupId)?.color }}
+                        />
+                        <span className="text-xs">
+                          {projectGroups.find(g => g.id === project.groupId)?.name}
+                        </span>
+                      </Badge>
+                    )}
+
                     {project.dueDate && (
                       <div className="flex items-center text-xs text-muted-foreground">
                         <Calendar className="w-3 h-3 mr-1" />
@@ -569,13 +717,44 @@ export default function Projects() {
                   <FormItem>
                     <FormLabel>项目描述</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="输入项目描述（可选）" 
+                      <Textarea
+                        placeholder="输入项目描述（可选）"
                         {...field}
-                        value={field.value || ""} 
+                        value={field.value || ""}
                         data-testid="input-edit-project-description"
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="groupId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>项目组</FormLabel>
+                    <Select onValueChange={(value) => field.onChange(value === "none" ? "" : value)} value={field.value || "none"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-project-group">
+                          <SelectValue placeholder="选择项目组（可选）" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">无项目组</SelectItem>
+                        {projectGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: group.color }}
+                              />
+                              {group.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

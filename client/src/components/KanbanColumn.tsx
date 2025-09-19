@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   onEditTask?: (task: Task) => void;
   onDeleteTask?: (taskId: string) => void;
   onStatusChange?: (taskId: string, newStatus: string) => void;
+  onAddSubtask?: (taskId: string) => void;
 }
 
 const statusConfig = {
@@ -51,6 +52,7 @@ export default function KanbanColumn({
   onEditTask,
   onDeleteTask,
   onStatusChange,
+  onAddSubtask,
 }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const config = statusConfig[status] || statusConfig.todo;
@@ -144,6 +146,7 @@ export default function KanbanColumn({
                 onEdit={onEditTask}
                 onDelete={onDeleteTask}
                 onStatusChange={onStatusChange}
+                onAddSubtask={onAddSubtask}
               />
             </div>
           ))}

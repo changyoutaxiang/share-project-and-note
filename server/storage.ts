@@ -1,8 +1,12 @@
 import {
   type Project,
   type InsertProject,
+  type ProjectGroup,
+  type InsertProjectGroup,
   type Task,
   type InsertTask,
+  type Subtask,
+  type InsertSubtask,
   type Tag,
   type InsertTag,
   type Milestone,
@@ -14,8 +18,15 @@ import { randomUUID } from "crypto";
 
 // Storage interface for all CRUD operations
 export interface IStorage {
+  // Project Group operations
+  getProjectGroups(): Promise<ProjectGroup[]>;
+  getProjectGroup(id: string): Promise<ProjectGroup | undefined>;
+  createProjectGroup(projectGroup: InsertProjectGroup): Promise<ProjectGroup>;
+  updateProjectGroup(id: string, updates: Partial<InsertProjectGroup>): Promise<ProjectGroup | undefined>;
+  deleteProjectGroup(id: string): Promise<boolean>;
+
   // Project operations
-  getProjects(): Promise<Project[]>;
+  getProjects(groupId?: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, updates: Partial<InsertProject>): Promise<Project | undefined>;
@@ -28,6 +39,14 @@ export interface IStorage {
   updateTask(id: string, updates: Partial<InsertTask>): Promise<Task | undefined>;
   deleteTask(id: string): Promise<boolean>;
   updateTaskStatus(id: string, status: string): Promise<Task | undefined>;
+
+  // Subtask operations
+  getSubtasks(taskId?: string): Promise<Subtask[]>;
+  getSubtask(id: string): Promise<Subtask | undefined>;
+  createSubtask(subtask: InsertSubtask): Promise<Subtask>;
+  updateSubtask(id: string, updates: Partial<InsertSubtask>): Promise<Subtask | undefined>;
+  deleteSubtask(id: string): Promise<boolean>;
+  updateSubtaskStatus(id: string, status: string): Promise<Subtask | undefined>;
 
   // Tag operations
   getTags(): Promise<Tag[]>;
@@ -46,19 +65,25 @@ export interface IStorage {
   // Search operations
   searchTasks(query: string): Promise<Task[]>;
   searchProjects(query: string): Promise<Project[]>;
+  searchProjectGroups(query: string): Promise<ProjectGroup[]>;
+  searchSubtasks(query: string): Promise<Subtask[]>;
 
 }
 
 // Export MemStorage for use in routes.ts
 export class MemStorage implements IStorage {
+  private projectGroups: Map<string, ProjectGroup>;
   private projects: Map<string, Project>;
   private tasks: Map<string, Task>;
+  private subtasks: Map<string, Subtask>;
   private tags: Map<string, Tag>;
   private milestones: Map<string, Milestone>;
 
   constructor() {
+    this.projectGroups = new Map();
     this.projects = new Map();
     this.tasks = new Map();
+    this.subtasks = new Map();
     this.tags = new Map();
     this.milestones = new Map();
 
@@ -70,20 +95,24 @@ export class MemStorage implements IStorage {
     // Create sample projects
     const project1: Project = {
       id: "proj-1",
+      groupId: null, // 暂时设为null，等项目组功能完善后再分配
       name: "个人项目管理应用",
       description: "开发一个功能完整的个人项目管理工具，支持任务管理、项目跟踪和进度可视化。",
       status: "active",
       dueDate: new Date("2025-02-28"),
       createdAt: new Date("2025-01-01"),
+      updatedAt: new Date("2025-01-01"),
     };
 
     const project2: Project = {
       id: "proj-2",
+      groupId: null, // 暂时设为null，等项目组功能完善后再分配
       name: "网站重设计项目",
       description: "重新设计公司官方网站，提升用户体验和现代化设计。",
       status: "active",
       dueDate: new Date("2025-03-15"),
       createdAt: new Date("2025-01-10"),
+      updatedAt: new Date("2025-01-10"),
     };
 
     this.projects.set(project1.id, project1);
@@ -219,9 +248,13 @@ export class MemStorage implements IStorage {
   }
 
   // Project operations
-  async getProjects(): Promise<Project[]> {
-    return Array.from(this.projects.values())
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  async getProjects(groupId?: string): Promise<Project[]> {
+    const allProjects = Array.from(this.projects.values());
+    const filtered = groupId
+      ? allProjects.filter(project => project.groupId === groupId)
+      : allProjects;
+
+    return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   async getProject(id: string): Promise<Project | undefined> {
@@ -230,13 +263,16 @@ export class MemStorage implements IStorage {
 
   async createProject(insertProject: InsertProject): Promise<Project> {
     const id = randomUUID();
+    const now = new Date();
     const project: Project = {
       id,
+      groupId: insertProject.groupId ?? null, // 如果没有提供groupId，设为null
       name: insertProject.name,
       description: insertProject.description ?? null,
       status: insertProject.status ?? "active",
       dueDate: insertProject.dueDate ?? null,
-      createdAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     };
     this.projects.set(id, project);
     return project;
@@ -417,8 +453,133 @@ export class MemStorage implements IStorage {
     return this.milestones.delete(id);
   }
 
+  // Project Group operations
+  async getProjectGroups(): Promise<ProjectGroup[]> {
+    return Array.from(this.projectGroups.values());
+  }
 
+  async getProjectGroup(id: string): Promise<ProjectGroup | undefined> {
+    return this.projectGroups.get(id);
+  }
 
+  async createProjectGroup(insertProjectGroup: InsertProjectGroup): Promise<ProjectGroup> {
+    const id = randomUUID();
+    const now = new Date();
+    const projectGroup: ProjectGroup = {
+      id,
+      name: insertProjectGroup.name,
+      description: insertProjectGroup.description ?? null,
+      color: insertProjectGroup.color ?? "#3B82F6",
+      status: insertProjectGroup.status ?? "active",
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.projectGroups.set(id, projectGroup);
+    return projectGroup;
+  }
+
+  async updateProjectGroup(id: string, updates: Partial<InsertProjectGroup>): Promise<ProjectGroup | undefined> {
+    const projectGroup = this.projectGroups.get(id);
+    if (!projectGroup) return undefined;
+
+    const updatedProjectGroup: ProjectGroup = {
+      ...projectGroup,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.projectGroups.set(id, updatedProjectGroup);
+    return updatedProjectGroup;
+  }
+
+  async deleteProjectGroup(id: string): Promise<boolean> {
+    return this.projectGroups.delete(id);
+  }
+
+  // Subtask operations
+  async getSubtasks(taskId?: string): Promise<Subtask[]> {
+    const allSubtasks = Array.from(this.subtasks.values());
+    if (taskId) {
+      return allSubtasks.filter(subtask => subtask.taskId === taskId);
+    }
+    return allSubtasks;
+  }
+
+  async getSubtask(id: string): Promise<Subtask | undefined> {
+    return this.subtasks.get(id);
+  }
+
+  async createSubtask(insertSubtask: InsertSubtask): Promise<Subtask> {
+    const id = randomUUID();
+    const now = new Date();
+    const subtask: Subtask = {
+      id,
+      taskId: insertSubtask.taskId,
+      title: insertSubtask.title,
+      description: insertSubtask.description ?? null,
+      status: insertSubtask.status ?? "todo",
+      priority: insertSubtask.priority ?? "medium",
+      dueDate: insertSubtask.dueDate ?? null,
+      assignee: insertSubtask.assignee ?? null,
+      progress: insertSubtask.progress ?? 0,
+      estimatedHours: insertSubtask.estimatedHours ?? null,
+      actualHours: insertSubtask.actualHours ?? null,
+      tags: insertSubtask.tags ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.subtasks.set(id, subtask);
+    return subtask;
+  }
+
+  async updateSubtask(id: string, updates: Partial<InsertSubtask>): Promise<Subtask | undefined> {
+    const subtask = this.subtasks.get(id);
+    if (!subtask) return undefined;
+
+    const updatedSubtask: Subtask = {
+      ...subtask,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.subtasks.set(id, updatedSubtask);
+    return updatedSubtask;
+  }
+
+  async deleteSubtask(id: string): Promise<boolean> {
+    return this.subtasks.delete(id);
+  }
+
+  async updateSubtaskStatus(id: string, status: string): Promise<Subtask | undefined> {
+    const subtask = this.subtasks.get(id);
+    if (!subtask) return undefined;
+
+    const updatedSubtask: Subtask = {
+      ...subtask,
+      status,
+      updatedAt: new Date(),
+    };
+    this.subtasks.set(id, updatedSubtask);
+    return updatedSubtask;
+  }
+
+  // Enhanced search operations
+  async searchProjectGroups(query: string): Promise<ProjectGroup[]> {
+    const lowerQuery = query.toLowerCase();
+    return Array.from(this.projectGroups.values()).filter(
+      group =>
+        group.name.toLowerCase().includes(lowerQuery) ||
+        (group.description && group.description.toLowerCase().includes(lowerQuery))
+    );
+  }
+
+  async searchSubtasks(query: string): Promise<Subtask[]> {
+    const lowerQuery = query.toLowerCase();
+    return Array.from(this.subtasks.values()).filter(
+      subtask =>
+        subtask.title.toLowerCase().includes(lowerQuery) ||
+        (subtask.description && subtask.description.toLowerCase().includes(lowerQuery)) ||
+        (subtask.assignee && subtask.assignee.toLowerCase().includes(lowerQuery))
+    );
+  }
 
 }
 

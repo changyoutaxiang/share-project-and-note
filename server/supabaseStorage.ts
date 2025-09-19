@@ -2,8 +2,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import {
   type Project,
   type InsertProject,
+  type ProjectGroup,
+  type InsertProjectGroup,
   type Task,
   type InsertTask,
+  type Subtask,
+  type InsertSubtask,
   type Tag,
   type InsertTag,
   type Milestone,
@@ -27,11 +31,16 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Project operations
-  async getProjects(): Promise<Project[]> {
-    const { data, error } = await this.supabase
+  async getProjects(groupId?: string): Promise<Project[]> {
+    let query = this.supabase
       .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
+
+    if (groupId) {
+      query = query.eq('group_id', groupId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
     return arrayToCamelCase(data || []);
@@ -319,6 +328,112 @@ export class SupabaseStorage implements IStorage {
 
     if (error) throw error;
     return arrayToCamelCase(data || []);
+  }
+
+  // TODO: Implement 4-layer architecture methods for production
+  // Project Group operations
+  async getProjectGroups(): Promise<ProjectGroup[]> {
+    const { data, error } = await this.supabase
+      .from('project_groups')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return arrayToCamelCase(data || []);
+  }
+
+  async getProjectGroup(id: string): Promise<ProjectGroup | undefined> {
+    const { data, error } = await this.supabase
+      .from('project_groups')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined; // Not found
+      throw error;
+    }
+    return toCamelCase(data);
+  }
+
+  async createProjectGroup(projectGroup: InsertProjectGroup): Promise<ProjectGroup> {
+    const { data, error } = await this.supabase
+      .from('project_groups')
+      .insert(toSnakeCase(projectGroup))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return toCamelCase(data);
+  }
+
+  async updateProjectGroup(id: string, updates: Partial<InsertProjectGroup>): Promise<ProjectGroup | undefined> {
+    const { data, error } = await this.supabase
+      .from('project_groups')
+      .update(toSnakeCase(updates))
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined;
+      throw error;
+    }
+    return toCamelCase(data);
+  }
+
+  async deleteProjectGroup(id: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('project_groups')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      if (error.code === 'PGRST116') return false;
+      throw error;
+    }
+    return true;
+  }
+
+  // Subtask operations (stubs)
+  async getSubtasks(taskId?: string): Promise<Subtask[]> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  async getSubtask(id: string): Promise<Subtask | undefined> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  async createSubtask(subtask: InsertSubtask): Promise<Subtask> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  async updateSubtask(id: string, updates: Partial<InsertSubtask>): Promise<Subtask | undefined> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  async deleteSubtask(id: string): Promise<boolean> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  async updateSubtaskStatus(id: string, status: string): Promise<Subtask | undefined> {
+    throw new Error("Subtask operations not yet implemented in Supabase storage");
+  }
+
+  // Enhanced search operations
+  async searchProjectGroups(query: string): Promise<ProjectGroup[]> {
+    const { data, error } = await this.supabase
+      .from('project_groups')
+      .select('*')
+      .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return arrayToCamelCase(data || []);
+  }
+
+  async searchSubtasks(query: string): Promise<Subtask[]> {
+    throw new Error("Subtask search not yet implemented in Supabase storage");
   }
 
 }

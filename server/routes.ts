@@ -1,22 +1,102 @@
+import dotenv from "dotenv";
+// Load environment variables at the top of routes.ts
+dotenv.config();
+
 import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { MemStorage } from "./storage";
 import { SupabaseStorage } from "./supabaseStorage";
-import { insertProjectSchema, insertTaskSchema, insertTagSchema, insertMilestoneSchema } from "@shared/schema";
+import {
+  insertProjectGroupSchema,
+  insertProjectSchema,
+  insertTaskSchema,
+  insertSubtaskSchema,
+  insertTagSchema,
+  insertMilestoneSchema
+} from "@shared/schema";
 
 // Use Supabase in production, memory storage in development without Supabase config
 const useSupabase = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY;
+console.log('Environment check:', {
+  SUPABASE_URL: process.env.SUPABASE_URL ? 'Set' : 'Not set',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'Set' : 'Not set',
+  useSupabase
+});
 const storage = useSupabase ? new SupabaseStorage() : new MemStorage();
+console.log('Using storage:', storage.constructor.name);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Enable JSON parsing
   app.use(express.json());
 
+  // Project Group routes
+  app.get("/api/project-groups", async (req, res) => {
+    try {
+      const projectGroups = await storage.getProjectGroups();
+      res.json(projectGroups);
+    } catch (error) {
+      console.error("Error fetching project groups:", error);
+      res.status(500).json({ error: "Failed to fetch project groups" });
+    }
+  });
+
+  app.get("/api/project-groups/:id", async (req, res) => {
+    try {
+      const projectGroup = await storage.getProjectGroup(req.params.id);
+      if (!projectGroup) {
+        return res.status(404).json({ error: "Project group not found" });
+      }
+      res.json(projectGroup);
+    } catch (error) {
+      console.error("Error fetching project group:", error);
+      res.status(500).json({ error: "Failed to fetch project group" });
+    }
+  });
+
+  app.post("/api/project-groups", async (req, res) => {
+    try {
+      const validatedData = insertProjectGroupSchema.parse(req.body);
+      const projectGroup = await storage.createProjectGroup(validatedData);
+      res.status(201).json(projectGroup);
+    } catch (error) {
+      console.error("Error creating project group:", error);
+      res.status(400).json({ error: "Invalid project group data" });
+    }
+  });
+
+  app.put("/api/project-groups/:id", async (req, res) => {
+    try {
+      const validatedData = insertProjectGroupSchema.partial().parse(req.body);
+      const projectGroup = await storage.updateProjectGroup(req.params.id, validatedData);
+      if (!projectGroup) {
+        return res.status(404).json({ error: "Project group not found" });
+      }
+      res.json(projectGroup);
+    } catch (error) {
+      console.error("Error updating project group:", error);
+      res.status(400).json({ error: "Invalid project group data" });
+    }
+  });
+
+  app.delete("/api/project-groups/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteProjectGroup(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Project group not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting project group:", error);
+      res.status(500).json({ error: "Failed to delete project group" });
+    }
+  });
+
   // Project routes
   app.get("/api/projects", async (req, res) => {
     try {
-      const projects = await storage.getProjects();
+      const groupId = req.query.groupId as string;
+      const projects = await storage.getProjects(groupId);
       res.json(projects);
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -179,6 +259,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Subtask routes
+  app.get("/api/tasks/:taskId/subtasks", async (req, res) => {
+    try {
+      const subtasks = await storage.getSubtasks(req.params.taskId);
+      res.json(subtasks);
+    } catch (error) {
+      console.error("Error fetching subtasks:", error);
+      res.status(500).json({ error: "Failed to fetch subtasks" });
+    }
+  });
+
+  app.get("/api/subtasks/:id", async (req, res) => {
+    try {
+      const subtask = await storage.getSubtask(req.params.id);
+      if (!subtask) {
+        return res.status(404).json({ error: "Subtask not found" });
+      }
+      res.json(subtask);
+    } catch (error) {
+      console.error("Error fetching subtask:", error);
+      res.status(500).json({ error: "Failed to fetch subtask" });
+    }
+  });
+
+  app.post("/api/tasks/:taskId/subtasks", async (req, res) => {
+    try {
+      const requestData = { ...req.body, taskId: req.params.taskId };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertSubtaskSchema.parse(requestData);
+      const subtask = await storage.createSubtask(validatedData);
+      res.status(201).json(subtask);
+    } catch (error) {
+      console.error("Error creating subtask:", error);
+      res.status(400).json({ error: "Invalid subtask data" });
+    }
+  });
+
+  app.put("/api/subtasks/:id", async (req, res) => {
+    try {
+      const requestData = { ...req.body };
+      if (requestData.dueDate && typeof requestData.dueDate === 'string') {
+        requestData.dueDate = new Date(requestData.dueDate);
+      }
+
+      const validatedData = insertSubtaskSchema.partial().parse(requestData);
+      const subtask = await storage.updateSubtask(req.params.id, validatedData);
+      if (!subtask) {
+        return res.status(404).json({ error: "Subtask not found" });
+      }
+      res.json(subtask);
+    } catch (error) {
+      console.error("Error updating subtask:", error);
+      res.status(400).json({ error: "Invalid subtask data" });
+    }
+  });
+
+  app.patch("/api/subtasks/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      const subtask = await storage.updateSubtaskStatus(req.params.id, status);
+      if (!subtask) {
+        return res.status(404).json({ error: "Subtask not found" });
+      }
+      res.json(subtask);
+    } catch (error) {
+      console.error("Error updating subtask status:", error);
+      res.status(500).json({ error: "Failed to update subtask status" });
+    }
+  });
+
+  app.delete("/api/subtasks/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSubtask(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Subtask not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting subtask:", error);
+      res.status(500).json({ error: "Failed to delete subtask" });
+    }
+  });
+
   // Tag routes
   app.get("/api/tags", async (req, res) => {
     try {
@@ -227,6 +396,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error searching projects:", error);
       res.status(500).json({ error: "Failed to search projects" });
+    }
+  });
+
+  app.get("/api/search/project-groups", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Search query is required" });
+      }
+      const projectGroups = await storage.searchProjectGroups(query);
+      res.json(projectGroups);
+    } catch (error) {
+      console.error("Error searching project groups:", error);
+      res.status(500).json({ error: "Failed to search project groups" });
+    }
+  });
+
+  app.get("/api/search/subtasks", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Search query is required" });
+      }
+      const subtasks = await storage.searchSubtasks(query);
+      res.json(subtasks);
+    } catch (error) {
+      console.error("Error searching subtasks:", error);
+      res.status(500).json({ error: "Failed to search subtasks" });
+    }
+  });
+
+  app.get("/api/search/all", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Search query is required" });
+      }
+
+      const [projectGroups, projects, tasks, subtasks] = await Promise.all([
+        storage.searchProjectGroups(query),
+        storage.searchProjects(query),
+        storage.searchTasks(query),
+        storage.searchSubtasks(query),
+      ]);
+
+      res.json({
+        projectGroups,
+        projects,
+        tasks,
+        subtasks,
+        total: projectGroups.length + projects.length + tasks.length + subtasks.length
+      });
+    } catch (error) {
+      console.error("Error searching all:", error);
+      res.status(500).json({ error: "Failed to search all" });
     }
   });
 

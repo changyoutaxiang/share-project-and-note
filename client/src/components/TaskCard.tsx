@@ -1,20 +1,22 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Flag, MoreHorizontal } from "lucide-react";
+import { Calendar, Clock, Flag, MoreHorizontal, CheckSquare, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Task, TaskPriority, TaskStatus } from "@shared/schema";
+import { Task, TaskPriority, TaskStatus, Subtask } from "@shared/schema";
 
 interface TaskCardProps {
   task: Task;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
   onStatusChange?: (taskId: string, status: string) => void;
+  onAddSubtask?: (taskId: string) => void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -30,8 +32,18 @@ const statusColors: Record<string, string> = {
   [TaskStatus.DONE]: "border-green-200 text-green-600 dark:border-green-800 dark:text-green-400",
 };
 
-export default function TaskCard({ task, onEdit, onDelete, onStatusChange }: TaskCardProps) {
+export default function TaskCard({ task, onEdit, onDelete, onStatusChange, onAddSubtask }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // 获取子任务
+  const { data: subtasks = [] } = useQuery({
+    queryKey: ["subtasks", task.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/tasks/${task.id}/subtasks`);
+      if (!response.ok) throw new Error("Failed to fetch subtasks");
+      return response.json();
+    },
+  });
 
   const handleStatusChange = (newStatus: string) => {
     onStatusChange?.(task.id, newStatus);
@@ -182,6 +194,81 @@ export default function TaskCard({ task, onEdit, onDelete, onStatusChange }: Tas
                 {tag}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* 子任务预览 */}
+        {subtasks.length > 0 && (
+          <div className="mt-3 pt-2 border-t">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <CheckSquare className="w-3 h-3" />
+                <span>子任务 ({subtasks.filter((s: any) => s.status === 'done').length}/{subtasks.length})</span>
+              </div>
+              {onAddSubtask && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddSubtask(task.id);
+                  }}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  添加
+                </Button>
+              )}
+            </div>
+
+            {/* 子任务列表预览 */}
+            <div className="space-y-1">
+              {subtasks.slice(0, 3).map((subtask: any) => (
+                <div
+                  key={subtask.id}
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <CheckSquare
+                    className={`w-3 h-3 ${
+                      subtask.status === 'done' ? 'text-green-600' : 'text-gray-400'
+                    }`}
+                  />
+                  <span className={`flex-1 truncate ${
+                    subtask.status === 'done' ? 'line-through' : ''
+                  }`}>
+                    {subtask.title}
+                  </span>
+                  {subtask.status === 'in_progress' && (
+                    <Badge variant="outline" className="text-xs px-1 py-0">
+                      进行中
+                    </Badge>
+                  )}
+                </div>
+              ))}
+              {subtasks.length > 3 && (
+                <div className="text-xs text-muted-foreground pl-5">
+                  还有 {subtasks.length - 3} 个子任务...
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 添加子任务按钮 - 当没有子任务时显示 */}
+        {subtasks.length === 0 && onAddSubtask && isExpanded && (
+          <div className="mt-3 pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubtask(task.id);
+              }}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              添加子任务
+            </Button>
           </div>
         )}
       </div>

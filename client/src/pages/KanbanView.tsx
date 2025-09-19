@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import KanbanColumn from "@/components/KanbanColumn";
 import SearchBar from "@/components/SearchBar";
 import CreateTaskDialog from "@/components/CreateTaskDialog";
+import CreateSubtaskDialog from "@/components/CreateSubtaskDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,8 @@ export default function KanbanView() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [defaultTaskStatus, setDefaultTaskStatus] = useState<TaskStatusType>(TaskStatus.TODO);
+  const [isCreateSubtaskOpen, setIsCreateSubtaskOpen] = useState(false);
+  const [selectedTaskForSubtask, setSelectedTaskForSubtask] = useState<Task | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -97,6 +100,32 @@ export default function KanbanView() {
     },
   });
 
+  const createSubtaskMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (!selectedTaskForSubtask) throw new Error("No task selected");
+      const response = await fetch(`/api/tasks/${selectedTaskForSubtask.id}/subtasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to create subtask");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subtasks"] });
+      toast({ title: "子任务创建成功" });
+      setIsCreateSubtaskOpen(false);
+      setSelectedTaskForSubtask(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "创建失败",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
   // Get tasks to display based on search
   const tasks = searchQuery && searchResults ? searchResults : allTasks;
 
@@ -131,6 +160,14 @@ export default function KanbanView() {
 
   const handleStatusChange = (taskId: string, newStatus: string) => {
     updateTaskStatusMutation.mutate({ taskId, status: newStatus });
+  };
+
+  const handleAddSubtask = (taskId: string) => {
+    const task = allTasks.find(t => t.id === taskId);
+    if (task) {
+      setSelectedTaskForSubtask(task);
+      setIsCreateSubtaskOpen(true);
+    }
   };
 
   // Get unique project IDs from tasks for filtering
@@ -269,6 +306,7 @@ export default function KanbanView() {
             onEditTask={handleEditTask}
             onDeleteTask={handleDeleteTask}
             onStatusChange={handleStatusChange}
+            onAddSubtask={handleAddSubtask}
           />
           <KanbanColumn
             title="进行中"
@@ -278,6 +316,7 @@ export default function KanbanView() {
             onEditTask={handleEditTask}
             onDeleteTask={handleDeleteTask}
             onStatusChange={handleStatusChange}
+            onAddSubtask={handleAddSubtask}
           />
           <KanbanColumn
             title="已完成"
@@ -287,6 +326,7 @@ export default function KanbanView() {
             onEditTask={handleEditTask}
             onDeleteTask={handleDeleteTask}
             onStatusChange={handleStatusChange}
+            onAddSubtask={handleAddSubtask}
           />
         </div>
       )}
@@ -305,6 +345,16 @@ export default function KanbanView() {
         }}
         projects={projects}
         defaultProjectId={selectedProject || undefined}
+      />
+
+      {/* Create Subtask Dialog */}
+      <CreateSubtaskDialog
+        open={isCreateSubtaskOpen}
+        onOpenChange={setIsCreateSubtaskOpen}
+        onSubmit={async (data) => {
+          await createSubtaskMutation.mutateAsync(data);
+        }}
+        taskTitle={selectedTaskForSubtask?.title}
       />
     </div>
   );

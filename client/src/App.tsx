@@ -11,12 +11,14 @@ import Dashboard from "@/pages/Dashboard";
 import KanbanView from "@/pages/KanbanView";
 import TaskList from "@/pages/TaskList";
 import Projects from "@/pages/Projects";
+import ProjectGroups from "@/pages/ProjectGroups";
 import NotFound from "@/pages/NotFound";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/project-groups" component={ProjectGroups} />
       <Route path="/kanban" component={KanbanView} />
       <Route path="/projects" component={Projects} />
       <Route path="/tasks" component={TaskList} />

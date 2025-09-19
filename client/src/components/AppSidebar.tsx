@@ -15,6 +15,7 @@ import {
   List,
   Settings,
   Home,
+  Folders,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -26,8 +27,14 @@ const mainItems = [
     id: "dashboard",
   },
   {
+    title: "项目组",
+    url: "/project-groups",
+    icon: Folders,
+    id: "project-groups",
+  },
+  {
     title: "项目",
-    url: "/projects", 
+    url: "/projects",
     icon: FolderOpen,
     id: "projects",
   },
@@ -35,7 +42,7 @@ const mainItems = [
     title: "看板",
     url: "/kanban",
     icon: Kanban,
-    id: "kanban", 
+    id: "kanban",
   },
   {
     title: "任务列表",
