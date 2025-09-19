@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ interface ProjectGroupCardProps {
 export default function ProjectGroupCard({ projectGroup }: ProjectGroupCardProps) {
   const [isArchiving, setIsArchiving] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -154,10 +156,18 @@ export default function ProjectGroupCard({ projectGroup }: ProjectGroupCardProps
 
   const status = statusConfig[projectGroup.status as keyof typeof statusConfig];
 
+  const handleCardClick = () => {
+    // 导航到项目页面，并通过 URL 参数传递项目组 ID
+    setLocation(`/projects?groupId=${projectGroup.id}`);
+  };
+
   return (
-    <Card className={`transition-all duration-200 hover:shadow-lg ${
-      projectGroup.status === "archived" ? "opacity-75" : ""
-    }`}>
+    <Card
+      className={`transition-all duration-200 hover:shadow-lg cursor-pointer ${
+        projectGroup.status === "archived" ? "opacity-75" : ""
+      }`}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -179,7 +189,12 @@ export default function ProjectGroupCard({ projectGroup }: ProjectGroupCardProps
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

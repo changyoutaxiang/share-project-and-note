@@ -395,29 +395,80 @@ export class SupabaseStorage implements IStorage {
     return true;
   }
 
-  // Subtask operations (stubs)
+  // Subtask operations
   async getSubtasks(taskId?: string): Promise<Subtask[]> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    let query = this.supabase.from('subtasks').select('*');
+
+    if (taskId) {
+      query = query.eq('task_id', taskId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return arrayToCamelCase(data || []);
   }
 
   async getSubtask(id: string): Promise<Subtask | undefined> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    const { data, error } = await this.supabase
+      .from('subtasks')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined; // Not found
+      throw error;
+    }
+    return toCamelCase(data);
   }
 
   async createSubtask(subtask: InsertSubtask): Promise<Subtask> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    const { data, error } = await this.supabase
+      .from('subtasks')
+      .insert(toSnakeCase(subtask))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return toCamelCase(data);
   }
 
   async updateSubtask(id: string, updates: Partial<InsertSubtask>): Promise<Subtask | undefined> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    const updateData = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    const { data, error } = await this.supabase
+      .from('subtasks')
+      .update(toSnakeCase(updateData))
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined;
+      throw error;
+    }
+    return toCamelCase(data);
   }
 
   async deleteSubtask(id: string): Promise<boolean> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    const { error } = await this.supabase
+      .from('subtasks')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      if (error.code === 'PGRST116') return false;
+      throw error;
+    }
+    return true;
   }
 
   async updateSubtaskStatus(id: string, status: string): Promise<Subtask | undefined> {
-    throw new Error("Subtask operations not yet implemented in Supabase storage");
+    return this.updateSubtask(id, { status });
   }
 
   // Enhanced search operations
@@ -433,7 +484,14 @@ export class SupabaseStorage implements IStorage {
   }
 
   async searchSubtasks(query: string): Promise<Subtask[]> {
-    throw new Error("Subtask search not yet implemented in Supabase storage");
+    const { data, error } = await this.supabase
+      .from('subtasks')
+      .select('*')
+      .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return arrayToCamelCase(data || []);
   }
 
 }

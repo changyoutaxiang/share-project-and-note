@@ -220,9 +220,17 @@ export default function Projects() {
   const getFilteredProjects = () => {
     let filtered = projects;
 
+    // Apply group filter
+    if (groupFilter !== "all") {
+      filtered = filtered.filter(project =>
+        project.groupId === groupFilter ||
+        (groupFilter === "none" && !project.groupId)
+      );
+    }
+
     // Apply search filter
     if (debouncedSearchQuery) {
-      filtered = filtered.filter(project => 
+      filtered = filtered.filter(project =>
         project.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         (project.description && project.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
       );
@@ -554,7 +562,12 @@ export default function Projects() {
           {filteredProjects.map((project) => {
             const stats = getProjectStats(project.id);
             return (
-              <Card key={project.id} className="hover-elevate" data-testid={`project-card-${project.id}`}>
+              <Card
+                key={project.id}
+                className="hover-elevate cursor-pointer transition-all duration-200 hover:shadow-lg"
+                data-testid={`project-card-${project.id}`}
+                onClick={() => navigate(`/kanban?project=${project.id}`)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
@@ -569,22 +582,41 @@ export default function Projects() {
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0" data-testid={`project-menu-${project.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          data-testid={`project-menu-${project.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(project)} data-testid={`project-edit-${project.id}`}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(project);
+                          }}
+                          data-testid={`project-edit-${project.id}`}
+                        >
                           <Edit className="w-4 h-4 mr-2" />
                           编辑项目
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleToggleArchive(project)} data-testid={`project-archive-${project.id}`}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleArchive(project);
+                          }}
+                          data-testid={`project-archive-${project.id}`}
+                        >
                           <Archive className="w-4 h-4 mr-2" />
                           {project.status === "active" ? "归档项目" : "恢复项目"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => {
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setProjectToDelete(project);
                             setDeleteDialogOpen(true);
                           }}
@@ -666,10 +698,13 @@ export default function Projects() {
                 </CardContent>
 
                 <CardFooter className="pt-3">
-                  <Button 
-                    variant="outline" 
-                    className="w-full" 
-                    onClick={() => navigate(`/kanban?project=${project.id}`)}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/kanban?project=${project.id}`);
+                    }}
                     data-testid={`project-view-kanban-${project.id}`}
                   >
                     <FolderOpen className="w-4 h-4 mr-2" />
